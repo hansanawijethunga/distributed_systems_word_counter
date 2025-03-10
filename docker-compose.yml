@@ -1,0 +1,27 @@
+version: '3.8'
+services:
+  node1:
+    build: .
+    container_name: node1
+    environment:
+      - NODE_ID=1
+    ports:
+      - "5001:5001"
+    volumes:
+      - ./document.txt:/app/document.txt
+  node2:
+    build: .
+    container_name: node2
+    environment:
+      - NODE_ID=2
+      - COORDINATOR_ADDRESS=node1:5001
+    ports:
+      - "5002:5002"
+  node3:
+    build: .
+    container_name: node3
+    environment:
+      - NODE_ID=3
+      - COORDINATOR_ADDRESS=node1:5001
+    ports:
+      - "5003:5003"

@@ -1,56 +1,14 @@
-"""
-# Proto file (node.proto) – for reference
-syntax = "proto3";
-package distributed;
-
-service NodeService {
-  rpc Register(NodeInfo) returns (RegistrationResponse);
-  rpc BroadcastRoles(RolesInfo) returns (Ack);
-  rpc ProcessLine(LineRequest) returns (Ack);
-  rpc SendCount(CountRequest) returns (Ack);
-}
-
-message NodeInfo {
-  string node_address = 1;
-}
-
-message RegistrationResponse {
-  string assigned_role = 1;
-  string message = 2;
-  repeated string all_nodes = 3;
-  map<string, string> roles = 4;
-}
-
-message RolesInfo {
-  map<string, string> roles = 1;
-}
-
-message LineRequest {
-  string line = 1;
-}
-
-message CountRequest {
-  string node_address = 1;
-  map<string, int32> counts = 2;
-}
-
-message Ack {
-  bool success = 1;
-  string message = 2;
-}
-"""
-
 import grpc
 from concurrent import futures
 import time
 import argparse
 import logging
 import threading
+import os
 
 # Import the generated classes (make sure to generate these using grpcio-tools)
 import node_pb2
 import node_pb2_grpc
-
 
 # ------------------------------------------------------------------------------
 # Sidecar: encapsulates communication and logs all requests/responses.
@@ -63,7 +21,6 @@ class Sidecar:
 
     def log(self, message):
         self.logger.info(message)
-
 
 # ------------------------------------------------------------------------------
 # Global coordinator state (for simulation purposes – in a real system this state is held by the coordinator)
@@ -78,7 +35,6 @@ ROLE_COORDINATOR = 'coordinator'
 ROLE_PROPOSER = 'proposer'
 ROLE_ACCEPTOR = 'acceptor'
 ROLE_LEARNER = 'learner'
-
 
 # ------------------------------------------------------------------------------
 # gRPC Servicer Implementation: defines how a node handles incoming gRPC calls.
@@ -127,7 +83,6 @@ class NodeServiceServicer(node_pb2_grpc.NodeServiceServicer):
             self.node.receive_count(request.counts)
         return node_pb2.Ack(success=True, message="Count received")
 
-
 # ------------------------------------------------------------------------------
 # Role Assignment Logic: the coordinator assigns roles as nodes register.
 # ------------------------------------------------------------------------------
@@ -142,19 +97,19 @@ def assign_role_for_new_node(new_node_address):
     else:
         return ROLE_ACCEPTOR
 
-
 # ------------------------------------------------------------------------------
 # DistributedNode Class: encapsulates node behavior (coordinator, proposer, etc.).
 # ------------------------------------------------------------------------------
 class DistributedNode:
     def __init__(self, node_id):
         self.node_id = node_id
-        self.address = f"localhost:{5000 + int(node_id)}"
-        # If node_id is 1, it's the coordinator. Otherwise, default coordinator is at localhost:5001.
+        # Use the container's hostname (set by Docker) for addressing; fallback to 'localhost'
+        self.address = f"{os.environ.get('HOSTNAME', 'localhost')}:{5000 + int(node_id)}"
         if int(node_id) == 1:
             self.coordinator_address = None
         else:
-            self.coordinator_address = "localhost:5001"
+            # Use the provided COORDINATOR_ADDRESS or default to "node1:5001"
+            self.coordinator_address = os.environ.get('COORDINATOR_ADDRESS', "node1:5001")
         self.role = None
         self.all_nodes = {}
         self.letter_range = None  # For proposer nodes: (start_letter, end_letter)
@@ -266,22 +221,24 @@ class DistributedNode:
         for letter, count in sorted(self.final_counts.items()):
             print(f"{letter}: {count}")
 
-
 # ------------------------------------------------------------------------------
 # Main entry point
 # ------------------------------------------------------------------------------
 def main():
     parser = argparse.ArgumentParser(description="Distributed Node for Word Count")
-    parser.add_argument('--node_id', type=int, required=True,
+    parser.add_argument('--node_id', type=int, required=False,
                         help='Unique node ID (e.g., 1, 2, 3). The node will listen on port (5000 + node_id)')
     args = parser.parse_args()
 
-    node = DistributedNode(args.node_id)
+    # Allow node_id to be set via environment variable if not passed as an argument
+    node_id = args.node_id if args.node_id is not None else int(os.environ.get('NODE_ID', '1'))
+
+    node = DistributedNode(node_id)
     node.start_server()
     time.sleep(1)  # Allow time for the server to start
 
     # If this node has node_id 1, it becomes the coordinator.
-    if args.node_id == 1:
+    if node_id == 1:
         node.role = ROLE_COORDINATOR
         coordinator_state['nodes'][node.address] = ROLE_COORDINATOR
         node.sidecar.log("I am the coordinator.")
@@ -292,7 +249,7 @@ def main():
     if node.role == ROLE_COORDINATOR:
         time.sleep(2)  # Wait for potential node registrations
         node.assign_letter_ranges()
-        # Hard-coded document path
+        # Hard-coded document path; ensure that document.txt is available in the container
         document_path = "document.txt"
         node.process_document(document_path)
 
@@ -300,7 +257,5 @@ def main():
     while True:
         time.sleep(10)
 
-
 if __name__ == '__main__':
     main()
-
