@@ -1,0 +1,11 @@
+What is Intelligent Agent??
+ • an agent program that implements the agent function— the
+mapping from percepts to actions.
+• the architecture is some sort of computing device with physical
+sensors and actuators that run the program
+ • agent = architecture + program
+• the program has to be one that is appropriate for the
+architecture.
+ • If the program is going to recommend actions like Walk, the architecture had better have
+legs. The architecture might be just an ordinary PC, or it might be a robotic car with
+several onboard computers, cameras, and other sensors
