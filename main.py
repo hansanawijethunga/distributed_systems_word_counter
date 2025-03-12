@@ -14,7 +14,7 @@ class Node:
     def __init__(self, id):
         self.id = id
         self.port = BASE_PORT
-        self.nodes = []
+        self.nodes = {}
         self.leader_id = None
 
     def _create_socket(self, is_receiver=False):
@@ -26,10 +26,7 @@ class Node:
 
         return sock
 
-    def add_node(self, value):
-        """Adds an integer to the array if it does not already exist."""
-        if value not in self.nodes:
-            self.nodes.append(value)
+
 
     def broadcast_join_message(self):
         sock = self._create_socket(is_receiver=False)
@@ -50,15 +47,12 @@ class Node:
             while True:
                 data, addr = sock.recvfrom(BUFFER_SIZE)
                 payload = data.decode()
-                print(f"Received from {addr}: {payload}")
+                # print(f"Received from {addr}: {payload}")
                 headers =  payload.split("-")
 
                 if headers[1] == "Heartbeat":
-                    self.add_node(int(headers[0]))
-
-
-
-
+                    n_id = int(headers[0])
+                    self.nodes[n_id] = time.time()
         except KeyboardInterrupt:
             print(f"Receiver stopped for node {self.id}.")
         finally:
@@ -69,9 +63,28 @@ class Node:
             heartbeat_message = f"{self.id}-Heartbeat-".encode()
             sock = self._create_socket(is_receiver=False)
             sock.sendto(heartbeat_message, (MULTICAST_GROUP, self.port))  # Use the node's port
-            print(f"Sent heartbeat from node {self.id}")
+            # print(f"Sent heartbeat from node {self.id}")
             sock.close()
             time.sleep(10)  # Send heartbeat every 10 seconds
+
+    def check_inactive_nodes(self, timeout=30):
+        while True:
+            time.sleep(timeout / 2)  # Check more frequently than the timeout
+            current_time = time.time()
+
+            # Find inactive nodes
+            inactive_nodes = [
+                n_id for n_id, last_time in self.nodes.items()
+                if current_time - last_time > timeout
+            ]
+
+            # Remove inactive nodes
+            for n_id in inactive_nodes:
+                self.nodes.pop(n_id, None)  # Use pop to avoid KeyError
+                print(f"Node {n_id} removed due to inactivity")
+
+
+
 
 
 def start_node(n_id):
@@ -83,10 +96,10 @@ def start_node(n_id):
     heartbeat_thread = threading.Thread(target=node.send_heartbeat, daemon=True)
     heartbeat_thread.start()
 
+    cleanup_thread = threading.Thread(target=node.check_inactive_nodes, daemon=True)
+    cleanup_thread.start()
+
     time.sleep(5)
-
-    # node.broadcast_join_message()
-
     try:
         while True:
             time.sleep(10)
@@ -101,12 +114,9 @@ def run_node(n_id):
 
 
 if __name__ == "__main__":
-    # Start two processes for two nodes
     num_nodes = 20
-
     for node_id in range(num_nodes):
         process = multiprocessing.Process(target=run_node, args=(node_id+1,))
         process.start()
 
-    # process1.join()
-    # process2.join()
+
