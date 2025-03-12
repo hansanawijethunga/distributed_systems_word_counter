@@ -3,6 +3,8 @@ import threading
 import time
 import os
 import multiprocessing
+import sys
+
 
 MULTICAST_GROUP = "224.1.1.1"
 BASE_PORT = 5000  # Base port number for calculation
@@ -114,9 +116,21 @@ def run_node(n_id):
 
 
 if __name__ == "__main__":
-    num_nodes = 20
-    for node_id in range(num_nodes):
-        process = multiprocessing.Process(target=run_node, args=(node_id+1,))
-        process.start()
+    if len(sys.argv) > 1 and sys.argv[1] == "single_run":
+        if len(sys.argv) != 3:
+            print("Usage: script.py single_run <node_id>")
+            sys.exit(1)
+        node_id = int(sys.argv[2])
+        run_node(node_id)
+    else:
+        num_nodes = 20
+        processes = []
+        for node_id in range(1, num_nodes + 1):
+            process = multiprocessing.Process(target=run_node, args=(node_id,))
+            process.start()
+            processes.append(process)
+
+        for process in processes:
+            process.join()
 
 
