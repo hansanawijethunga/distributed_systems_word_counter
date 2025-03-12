@@ -1,36 +1,22 @@
 version: '3.8'
 
+networks:
+  multicast_net:
+    driver: bridge
+
 services:
   node1:
     build: .
     container_name: node1
     environment:
-      - NODE_ID=node1
+      - NODE_ID=Node1
     networks:
-      node_network:
-        ipv4_address: 192.168.1.2
+      - multicast_net
 
   node2:
     build: .
     container_name: node2
     environment:
-      - NODE_ID=node2
+      - NODE_ID=Node2
     networks:
-      node_network:
-        ipv4_address: 192.168.1.3
-
-  node3:
-    build: .
-    container_name: node3
-    environment:
-      - NODE_ID=node3
-    networks:
-      node_network:
-        ipv4_address: 192.168.1.4
-
-networks:
-  node_network:
-    driver: bridge
-    ipam:
-      config:
-        - subnet: 192.168.1.0/24
+      - multicast_net
