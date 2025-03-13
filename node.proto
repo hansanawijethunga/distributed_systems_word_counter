@@ -1,0 +1,21 @@
+syntax = "proto3";
+
+package leader_election;
+
+// Service for leader election
+service LeaderElection {
+  // A node challenges a higher node
+  rpc Challenge (ChallengeRequest) returns (ChallengeResponse);
+}
+
+// Request sent when challenging a higher node
+message ChallengeRequest {
+  int32 node_id = 1;
+}
+
+// Response to a challenge message
+message ChallengeResponse {
+  bool acknowledged = 1;
+}
+
+
