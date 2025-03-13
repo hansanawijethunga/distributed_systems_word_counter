@@ -12,33 +12,32 @@ TTL = 2
 BUFFER_SIZE = 1024
 
 
+def _create_socket(is_receiver=False):
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+
+    if not is_receiver:
+        sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, TTL)
+
+    return sock
+
+
 class Node:
     def __init__(self, id):
         self.id = id
         self.port = BASE_PORT
         self.nodes = {}
         self.leader_id = None
-
-    def _create_socket(self, is_receiver=False):
-        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
-        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-
-        if not is_receiver:
-            sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, TTL)
-
-        return sock
-
-
+        self.isCoordinator = False
 
     def broadcast_join_message(self):
-        sock = self._create_socket(is_receiver=False)
+        sock = _create_socket(is_receiver=False)
         message = b"Hello, Docker Multicast!"
-        sock.sendto(message, (MULTICAST_GROUP, self.port))  # Use the node's port
-        # print(f"Sent message from node {self.id}: {message.decode()}")
+        sock.sendto(message, (MULTICAST_GROUP, self.port))
         sock.close()
 
     def receive_messages(self):
-        sock = self._create_socket(is_receiver=True)
+        sock = _create_socket(is_receiver=True)
         sock.bind(("", self.port))  # Bind to the node's fixed port
         mreq = socket.inet_aton(MULTICAST_GROUP) + socket.inet_aton("0.0.0.0")
         sock.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
@@ -51,10 +50,11 @@ class Node:
                 payload = data.decode()
                 # print(f"Received from {addr}: {payload}")
                 headers =  payload.split("-")
-
+                n_id = int(headers[0])
                 if headers[1] == "Heartbeat":
-                    n_id = int(headers[0])
                     self.nodes[n_id] = time.time()
+                elif headers[1] == "LeaderHeartbeat":
+                    self.leader_id = (n_id,time.time())
         except KeyboardInterrupt:
             print(f"Receiver stopped for node {self.id}.")
         finally:
@@ -62,9 +62,9 @@ class Node:
 
     def send_heartbeat(self):
         while True:
-            heartbeat_message = f"{self.id}-Heartbeat-".encode()
-            sock = self._create_socket(is_receiver=False)
-            sock.sendto(heartbeat_message, (MULTICAST_GROUP, self.port))  # Use the node's port
+            heartbeat_message = f"{self.id}-LeaderHeartbeat-".encode() if self.isCoordinator else f"{self.id}-Heartbeat-".encode()
+            sock = _create_socket(is_receiver=False)
+            sock.sendto(heartbeat_message, (MULTICAST_GROUP, self.port))
             # print(f"Sent heartbeat from node {self.id}")
             sock.close()
             time.sleep(10)  # Send heartbeat every 10 seconds
@@ -85,8 +85,8 @@ class Node:
                 self.nodes.pop(n_id, None)  # Use pop to avoid KeyError
                 print(f"Node {n_id} removed due to inactivity")
 
-
-
+            if self.leader_id is not None and current_time - self.leader_id[1] > timeout :
+                self.leader_id = None
 
 
 def start_node(n_id):
@@ -101,10 +101,16 @@ def start_node(n_id):
     cleanup_thread = threading.Thread(target=node.check_inactive_nodes, daemon=True)
     cleanup_thread.start()
 
-    time.sleep(5)
     try:
         while True:
-            time.sleep(10)
+            if node.leader_id is None :
+                print("No Leader Found Waiting for leader")
+                time.sleep(30)
+                if node.leader_id is None :
+                     # start election
+                     pass
+
+            time.sleep(20)
             print(f"From Node {node.id}  {node.nodes}")
 
     except KeyboardInterrupt:

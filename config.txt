@@ -3,3 +3,5 @@ docker network create --driver=bridge my_multicast_network
 docker run --rm --network=my_multicast_network multicast-app
 
 docker build -t multicast-node .
+
+ main.py single_run 50
