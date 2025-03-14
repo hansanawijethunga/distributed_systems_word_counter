@@ -5,7 +5,7 @@ import node_pb2_grpc
 
 def run():
     # Step 1: Set up the gRPC channel to connect to the server.
-    channel = grpc.insecure_channel('localhost:50051')  # Update the server address if needed
+    channel = grpc.insecure_channel('localhost:60000')  # Update the server address if needed
 
     # Step 2: Create a stub (client).
     stub = node_pb2_grpc.LeaderElectionStub(channel)

@@ -3,6 +3,7 @@ import threading
 import time
 import multiprocessing
 import sys
+from concurrent import futures
 from msilib.schema import ProgId
 
 import grpc
@@ -16,7 +17,7 @@ MULTICAST_GROUP = "224.1.1.1"
 BASE_PORT = 5000  # Base port number for calculation
 TTL = 2
 BUFFER_SIZE = 1024
-GRPC_PORT_OFFSET = 5050  # Offset for gRPC ports
+GRPC_PORT_OFFSET = 60000  # Offset for gRPC ports
 
 
 def _create_socket(is_receiver=False):
@@ -34,7 +35,7 @@ class LeaderElectionService(node_pb2_grpc.LeaderElectionServicer):
         self.node = node
 
     def Challenge(self, request, context):
-        print("Request Found")
+        # self.node.start_election()
         return node_pb2.ChallengeResponse(acknowledged=True)
 
 
@@ -50,7 +51,7 @@ class Node:
 
     def start_grpc_server(self):
         """Starts the gRPC server for handling leader election challenges."""
-        server = grpc.server(concurrent.futures.ThreadPoolExecutor(max_workers=10))
+        server = grpc.server(futures.ThreadPoolExecutor(max_workers=50))
         node_pb2_grpc.add_LeaderElectionServicer_to_server(LeaderElectionService(self), server)
         server.add_insecure_port(f"[::]:{self.grpc_port}")
         server.start()
@@ -63,12 +64,13 @@ class Node:
         for higher_id in sorted(self.nodes.keys(), reverse=True):
             if higher_id > self.id:
                 try:
-                    print(f"Node {self.id} chalanging node {higher_id}")
+                    print(f"Node {self.id} challenging node {higher_id} through port {GRPC_PORT_OFFSET + higher_id}")
                     channel = grpc.insecure_channel(f"localhost:{GRPC_PORT_OFFSET + higher_id}")
                     stub = node_pb2_grpc.LeaderElectionStub(channel)
                     challenge_request = node_pb2.ChallengeRequest(node_id=self.id)
                     response = stub.Challenge(challenge_request)
-                    if response.ack:
+                    # print(response)
+                    if response.acknowledged:
                         print(f"Node {self.id}: Acknowledgment received from {higher_id}")
                         response = response or True
                 except Exception as e:
@@ -109,14 +111,18 @@ class Node:
                 payload = data.decode()
                 headers = payload.split("-")
                 n_id = int(headers[0])
-                print(addr)
+                # print(addr)
                 if headers[1] == "Heartbeat" and n_id != self.id:
-                    print(f"Node {self.id}:Receive Heartbeat from {n_id}")
+                    # print(f"Node {self.id}:Receive Heartbeat from {n_id}")
                     self.nodes[n_id] = time.time()
                 elif headers[1] == "LeaderHeartbeat" and n_id != self.id:
-                    print(f"Node {self.id}:Receive Leader Heartbeat from {n_id}")
-                    if not self.leader_id or self.leader_id[0] != n_id :
-                        self.set_leader(n_id)
+                    # print(f"Node {self.id}:Receive Leader Heartbeat from {n_id}")
+                    if not self.leader_id:
+                        self.set_leader(n_id) #set a leader if no leader found
+                    elif self.leader_id[0] != n_id:
+                        self.leader_id = ()  #set your leader id to empty when different  heartbeat
+                    else:
+                        self.leader_id = (n_id, time.time()) # update the timestamp if the leaderid is same
                 elif headers[1] == "I am the leader" and n_id != self.id:
                     self.set_leader(n_id)
 
@@ -152,24 +158,19 @@ class Node:
         while True:
             time.sleep(timeout / 2)
             current_time = time.time()
-
             inactive_nodes = [n_id for n_id, last_time in self.nodes.items() if current_time - last_time > timeout]
             for n_id in inactive_nodes:
                 self.nodes.pop(n_id, None)
                 print(f"Node {self.id}: Removed inactive node {n_id}")
-
-            print(f"Leader Id {self.leader_id}")
-            if self.leader_id :
-                print(self.leader_id[1])
-            if self.leader_id and current_time - self.leader_id[1] > timeout:
-                self.leader_id = ()
+            if not self.isLeader :
+                if self.leader_id and current_time - self.leader_id[1] > timeout:
+                    self.leader_id = ()
+                    print(f"Node {self.id}: Removed Leader")
 
     def start_election(self):
         """Initiates the leader election process."""
-        print(f"Node {self.id}: Initiating leader election...")
         acknowledged = self.challenge_higher_nodes()
-
-        if not acknowledged and not self.leader_id:
+        if not acknowledged and not self.isLeader:
             self.announce_leadership()
 
 
@@ -177,36 +178,38 @@ def start_node(n_id):
     node = Node(n_id)
 
 
-    # receiver_thread = threading.Thread(target=node.receive_messages, daemon=True)
-    # receiver_thread.start()
+    receiver_thread = threading.Thread(target=node.receive_messages, daemon=True)
+    receiver_thread.start()
     #
-    # heartbeat_thread = threading.Thread(target=node.send_heartbeat, daemon=True)
-    # heartbeat_thread.start()
+    heartbeat_thread = threading.Thread(target=node.send_heartbeat, daemon=True)
+    heartbeat_thread.start()
     #
-    # cleanup_thread = threading.Thread(target=node.check_inactive_nodes, daemon=True)
-    # cleanup_thread.start()
+    cleanup_thread = threading.Thread(target=node.check_inactive_nodes, daemon=True)
+    cleanup_thread.start()
     #
     grpc_thread = threading.Thread(target=node.start_grpc_server, daemon=True)
     grpc_thread.start()
 
-    time.sleep(3)
-    if node.id == 1 :
-        node.rpcCheck()
-    #
-    # try:
-    #     while True:
-    #         if not node.leader_id :
-    #             print(f"Node {node.id}: No leader found, waiting...")
-    #             time.sleep(30)
-    #             if not node.leader_id :
-    #                 node.start_election()
-    #
-    #         time.sleep(5)
-    #         print(f"Node {node.id}: Active nodes: {node.nodes}")
-    #         print(f"Leader {node.leader_id}")
-    #
-    # except KeyboardInterrupt:
-    #     print(f"Node {n_id}: Stopping...")
+    # time.sleep(3)
+    # if node.id == 1 :
+    #     node.rpcCheck()
+
+
+    try:
+        while True:
+            if not node.leader_id :
+                print(f"Node {node.id}: No leader found, waiting...")
+                time.sleep(30)
+                if not node.leader_id :
+                    print(f"Node {node.id}: Initiating leader election...")
+                    node.start_election()
+
+            time.sleep(60)
+            print(f"Node {node.id}: Active nodes: {node.nodes}")
+            print(f"Node {node.id} Leader {node.leader_id}")
+
+    except KeyboardInterrupt:
+        print(f"Node {n_id}: Stopping...")
 
 
 def run_node(n_id):
@@ -221,7 +224,7 @@ if __name__ == "__main__":
         node_id = int(sys.argv[2])
         run_node(node_id)
     else:
-        num_nodes = 2
+        num_nodes = 20
         processes = []
         for node_id in range(1, num_nodes + 1):
             process = multiprocessing.Process(target=run_node, args=(node_id,))
