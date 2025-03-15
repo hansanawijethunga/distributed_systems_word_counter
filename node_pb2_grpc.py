@@ -45,6 +45,11 @@ class LeaderElectionStub(object):
                 request_serializer=node__pb2.ChallengeRequest.SerializeToString,
                 response_deserializer=node__pb2.ChallengeResponse.FromString,
                 _registered_method=True)
+        self.UpdateRole = channel.unary_unary(
+                '/leader_election.LeaderElection/UpdateRole',
+                request_serializer=node__pb2.UpdateRoleRequest.SerializeToString,
+                response_deserializer=node__pb2.UpdateRoleResponse.FromString,
+                _registered_method=True)
 
 
 class LeaderElectionServicer(object):
@@ -58,6 +63,13 @@ class LeaderElectionServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def UpdateRole(self, request, context):
+        """Method to update the role of a node
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_LeaderElectionServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -65,6 +77,11 @@ def add_LeaderElectionServicer_to_server(servicer, server):
                     servicer.Challenge,
                     request_deserializer=node__pb2.ChallengeRequest.FromString,
                     response_serializer=node__pb2.ChallengeResponse.SerializeToString,
+            ),
+            'UpdateRole': grpc.unary_unary_rpc_method_handler(
+                    servicer.UpdateRole,
+                    request_deserializer=node__pb2.UpdateRoleRequest.FromString,
+                    response_serializer=node__pb2.UpdateRoleResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -95,6 +112,33 @@ class LeaderElection(object):
             '/leader_election.LeaderElection/Challenge',
             node__pb2.ChallengeRequest.SerializeToString,
             node__pb2.ChallengeResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def UpdateRole(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/leader_election.LeaderElection/UpdateRole',
+            node__pb2.UpdateRoleRequest.SerializeToString,
+            node__pb2.UpdateRoleResponse.FromString,
             options,
             channel_credentials,
             insecure,

@@ -14,7 +14,7 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\nnode.proto\x12\x0fleader_election\"#\n\x10\x43hallengeRequest\x12\x0f\n\x07node_id\x18\x01 \x01(\x05\")\n\x11\x43hallengeResponse\x12\x14\n\x0c\x61\x63knowledged\x18\x01 \x01(\x08\x32\x64\n\x0eLeaderElection\x12R\n\tChallenge\x12!.leader_election.ChallengeRequest\x1a\".leader_election.ChallengeResponseb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\nnode.proto\x12\x0fleader_election\"#\n\x10\x43hallengeRequest\x12\x0f\n\x07node_id\x18\x01 \x01(\x05\")\n\x11\x43hallengeResponse\x12\x14\n\x0c\x61\x63knowledged\x18\x01 \x01(\x08\"6\n\x11UpdateRoleRequest\x12\x0f\n\x07node_id\x18\x01 \x01(\x05\x12\x10\n\x08new_role\x18\x02 \x01(\t\"6\n\x12UpdateRoleResponse\x12\x0f\n\x07success\x18\x01 \x01(\x08\x12\x0f\n\x07message\x18\x02 \x01(\t2\xbb\x01\n\x0eLeaderElection\x12R\n\tChallenge\x12!.leader_election.ChallengeRequest\x1a\".leader_election.ChallengeResponse\x12U\n\nUpdateRole\x12\".leader_election.UpdateRoleRequest\x1a#.leader_election.UpdateRoleResponseb\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -25,6 +25,10 @@ if not _descriptor._USE_C_DESCRIPTORS:
   _globals['_CHALLENGEREQUEST']._serialized_end=66
   _globals['_CHALLENGERESPONSE']._serialized_start=68
   _globals['_CHALLENGERESPONSE']._serialized_end=109
-  _globals['_LEADERELECTION']._serialized_start=111
-  _globals['_LEADERELECTION']._serialized_end=211
+  _globals['_UPDATEROLEREQUEST']._serialized_start=111
+  _globals['_UPDATEROLEREQUEST']._serialized_end=165
+  _globals['_UPDATEROLERESPONSE']._serialized_start=167
+  _globals['_UPDATEROLERESPONSE']._serialized_end=221
+  _globals['_LEADERELECTION']._serialized_start=224
+  _globals['_LEADERELECTION']._serialized_end=411
 # @@protoc_insertion_point(module_scope)

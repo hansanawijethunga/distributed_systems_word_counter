@@ -5,13 +5,23 @@ import multiprocessing
 import sys
 from concurrent import futures
 from msilib.schema import ProgId
+from traceback import print_tb
 
 import grpc
 import concurrent.futures
+from enum import Enum
+
 
 # gRPC Proto Definitions (Assume pre-generated from .proto file)
 import node_pb2
 import node_pb2_grpc
+
+
+class Roles(Enum):
+    PROPOSER = 1
+    ACCEPTOR = 2
+    LEANER = 3
+    UNASSIGNED = 4
 
 MULTICAST_GROUP = "224.1.1.1"
 BASE_PORT = 5000  # Base port number for calculation
@@ -38,6 +48,43 @@ class LeaderElectionService(node_pb2_grpc.LeaderElectionServicer):
         # self.node.start_election()
         return node_pb2.ChallengeResponse(acknowledged=True)
 
+    def set_role(self, request, context):
+        role = request.role
+        if role == Roles.PROPOSER:
+            self.node.role = Roles.PROPOSER
+        if role == Roles.ACCEPTOR:
+            self.node.role = Roles.ACCEPTOR
+        if role == Roles.LEANER:
+            self.node.role = Roles.LEANER
+        return node_pb2.SetRoleResponse(success=True)
+
+
+def get_assign_role(nodes):
+    # Only one learner should exist.
+    # If no learner exists, assign the first new node as learner.
+    if nodes[Roles.LEANER] == 0:
+        nodes[Roles.LEANER] += 1
+        return Roles.LEANER
+
+    # Ensure at least one proposer.
+    if nodes[Roles.PROPOSER] == 0:
+        nodes[Roles.PROPOSER] += 1
+        return Roles.PROPOSER
+
+    # Ensure at least three acceptors.
+    if nodes[Roles.ACCEPTOR] < 3:
+        nodes[Roles.ACCEPTOR] += 1
+        return Roles.ACCEPTOR
+
+    # After the stable configuration (1 learner, 1 proposer, 3 acceptors),
+    # we first add acceptors to the system.
+    if nodes[Roles.ACCEPTOR] < 2 * nodes[Roles.PROPOSER]:
+        nodes[Roles.ACCEPTOR] += 1
+        return Roles.ACCEPTOR
+
+    # Only add a proposer if we have at least two acceptors for every proposer.
+    nodes[Roles.PROPOSER] += 1
+    return Roles.PROPOSER
 
 
 class Node:
@@ -46,6 +93,7 @@ class Node:
         self.port = BASE_PORT
         self.grpc_port = GRPC_PORT_OFFSET + id
         self.nodes = {}
+        self.role = Roles.UNASSIGNED
         self.leader_id = tuple()
         self.isLeader = False
 
@@ -77,6 +125,24 @@ class Node:
                     print(f"Node {self.id}: Failed to communicate with {higher_id} ({e})")
 
         return response
+
+
+
+    def updater_role_in_nodes(self,n_id,role_id):
+        try:
+            print(f"Leader  Setting Role of the node {n_id} through port {GRPC_PORT_OFFSET + n_id}")
+            channel = grpc.insecure_channel(f"localhost:{GRPC_PORT_OFFSET + n_id}")
+            stub = node_pb2_grpc.LeaderElectionStub(channel)
+            update_role_request = node_pb2.UpdateRoleRequest(new_role=role_id)
+            response = stub.Challenge(update_role_request)
+            # print(response)
+            if response.success:
+                print(f"Node {self.id}: Acknowledgment received from {n_id}")
+            # return response.success
+        except Exception as e:
+            print(f"Node {self.id}: Failed to communicate with {n_id} ({e})")
+
+
 
     def rpcCheck(self):
         print(f"node {self.id} Sending Request to {GRPC_PORT_OFFSET + 2}")
@@ -114,7 +180,7 @@ class Node:
                 # print(addr)
                 if headers[1] == "Heartbeat" and n_id != self.id:
                     # print(f"Node {self.id}:Receive Heartbeat from {n_id}")
-                    self.nodes[n_id] = time.time()
+                    self.nodes[n_id] = {'time': time.time(), 'role': headers[2]}
                 elif headers[1] == "LeaderHeartbeat" and n_id != self.id:
                     # print(f"Node {self.id}:Receive Leader Heartbeat from {n_id}")
                     if not self.leader_id:
@@ -147,18 +213,26 @@ class Node:
     def send_heartbeat(self):
         """Sends a heartbeat message periodically."""
         while True:
-            heartbeat_message = f"{self.id}-LeaderHeartbeat-".encode() if self.isLeader else f"{self.id}-Heartbeat-".encode()
+            heartbeat_message = f"{self.id}-LeaderHeartbeat-".encode() if self.isLeader else f"{self.id}-Heartbeat-{self.role}".encode()
             sock = _create_socket(is_receiver=False)
             sock.sendto(heartbeat_message, (MULTICAST_GROUP, self.port))
             sock.close()
             time.sleep(10)
+
+    def check_unassigned_roles_roles(self):
+        print(self.nodes)
+        for n_id,node in self.nodes.items() :
+            if node["role"] == Roles.UNASSIGNED :
+                nodes =self.gate_node_count()
+                role = get_assign_role(nodes)
+                self.updater_role_in_nodes(n_id,role)
 
     def check_inactive_nodes(self, timeout=30):
         """Checks for inactive nodes and triggers re-election if necessary."""
         while True:
             time.sleep(timeout / 2)
             current_time = time.time()
-            inactive_nodes = [n_id for n_id, last_time in self.nodes.items() if current_time - last_time > timeout]
+            inactive_nodes = [n_id for n_id, data in self.nodes.items() if current_time - data['time'] > timeout]
             for n_id in inactive_nodes:
                 self.nodes.pop(n_id, None)
                 print(f"Node {self.id}: Removed inactive node {n_id}")
@@ -166,12 +240,29 @@ class Node:
                 if self.leader_id and current_time - self.leader_id[1] > timeout:
                     self.leader_id = ()
                     print(f"Node {self.id}: Removed Leader")
+            if self.isLeader:
+                self.check_unassigned_roles_roles()
 
     def start_election(self):
         """Initiates the leader election process."""
         acknowledged = self.challenge_higher_nodes()
         if not acknowledged and not self.isLeader:
             self.announce_leadership()
+
+
+    def gate_node_count(self):
+        nodes = {Roles.PROPOSER : 0 , Roles.ACCEPTOR:0 , Roles.LEANER:0}
+        for node in self.nodes:
+            if node["role"] == Roles.PROPOSER:
+                nodes[ Roles.PROPOSER] += 1
+            if node["role"] == Roles.ACCEPTOR:
+                nodes[Roles.ACCEPTOR] += 1
+            if node["role"] == Roles.LEANER:
+                nodes[Roles.LEANER] += 1
+        return  nodes
+
+
+
 
 
 def start_node(n_id):
@@ -204,9 +295,12 @@ def start_node(n_id):
                     print(f"Node {node.id}: Initiating leader election...")
                     node.start_election()
 
-            time.sleep(60)
-            print(f"Node {node.id}: Active nodes: {node.nodes}")
-            print(f"Node {node.id} Leader {node.leader_id}")
+            if node.isLeader:
+                pass
+            if node.isLeader:
+                print(f"Node {node.id}: Active nodes: {node.nodes}")
+                time.sleep(10)
+            # print(f"Node {node.id} Leader {node.leader_id}")
 
     except KeyboardInterrupt:
         print(f"Node {n_id}: Stopping...")

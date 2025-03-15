@@ -6,16 +6,27 @@ package leader_election;
 service LeaderElection {
   // A node challenges a higher node
   rpc Challenge (ChallengeRequest) returns (ChallengeResponse);
+
+  // Method to update the role of a node
+  rpc UpdateRole (UpdateRoleRequest) returns (UpdateRoleResponse);
 }
 
 // Request sent when challenging a higher node
 message ChallengeRequest {
-  int32 node_id = 1;
+  int32 node_id = 1;     // Node identifier
 }
 
 // Response to a challenge message
 message ChallengeResponse {
-  bool acknowledged = 1;
+  bool acknowledged = 1; // Whether the challenge was acknowledged
 }
 
+// Request to update the role of a node
+message UpdateRoleRequest {
+  string new_role = 1;
+}
 
+// Response to the role update request
+message UpdateRoleResponse {
+  bool success = 1;      // Whether the role update was successful
+}
