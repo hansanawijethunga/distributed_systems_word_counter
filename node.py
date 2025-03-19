@@ -7,6 +7,8 @@ import node_pb2_grpc
 import helpers
 from helpers import Roles
 from leader_election_service import LeaderElectionService
+import queue
+
 
 MULTICAST_GROUP = "224.1.1.1"
 BASE_PORT = 5000  # Base port number for calculation
@@ -24,6 +26,7 @@ class Node:
         self.role = Roles.UNASSIGNED
         self.leader_id = tuple()
         self.isLeader = False
+        self.jobs = queue.Queue()
 
     def start_grpc_server(self):
         """Starts the gRPC server for handling leader election challenges."""
@@ -191,3 +194,17 @@ class Node:
             if node["role"] == Roles.LEANER.name:
                 nodes[Roles.LEANER.name] += 1
         return  nodes
+
+    def queue_job(self,n_id,letter_range,page,line,text):
+        try:
+            # print(f"Leader  queuing jobs to {n_id} through port {GRPC_PORT_OFFSET + n_id}")
+            channel = grpc.insecure_channel(f"localhost:{GRPC_PORT_OFFSET + n_id}")
+            stub = node_pb2_grpc.LeaderElectionStub(channel)
+            job_request = node_pb2.JobRequest(range=letter_range,text=text,page=page,line=line)
+            response = stub.QueueJob(job_request)
+            # print(response)
+            if response.success:
+                return response.success
+        except Exception as e:
+            print(f"Node {self.id}: Failed to communicate with {n_id} ({e})")
+            return False

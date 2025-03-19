@@ -9,11 +9,14 @@ service LeaderElection {
 
   // Method to update the role of a node
   rpc UpdateRole (UpdateRoleRequest) returns (UpdateRoleResponse);
+
+  // Queue a job to be processed
+  rpc QueueJob (JobRequest) returns (AcknowledgementResponse);
 }
 
 // Request sent when challenging a higher node
 message ChallengeRequest {
-  int32 node_id = 1;     // Node identifier
+  int32 challenger_node_id = 1;     // Node making the challenge
 }
 
 // Response to a challenge message
@@ -23,10 +26,23 @@ message ChallengeResponse {
 
 // Request to update the role of a node
 message UpdateRoleRequest {
-  string new_role = 1;
+  string new_role = 1; // The new role for the node
 }
 
 // Response to the role update request
 message UpdateRoleResponse {
   bool success = 1;      // Whether the role update was successful
+}
+
+// Request for job details
+message JobRequest {
+  int32 page = 1;        // Page number for the job
+  int32 line = 2;        // Line number for the job
+  string range = 3;      // Range of the job
+  string text = 4;       // Text associated with the job
+}
+
+// Acknowledgement response for job queue action
+message AcknowledgementResponse {
+  bool success = 1; // Whether the job was successfully queued
 }

@@ -7,7 +7,9 @@ import sys
 import helpers
 from helpers import Roles
 from node import Node
+from pdf_reader import PDFReader
 
+PDF_PATH = 'Material/Document.pdf'
 
 
 def start_threads(node):
@@ -31,6 +33,7 @@ def start_node(n_id):
 
     try:
         while True:
+
             if not node.leader_id :
                 print(f"Node {node.id}: No leader found, waiting...")
                 time.sleep(30)
@@ -39,13 +42,24 @@ def start_node(n_id):
                     node.start_election()
 
             if node.isLeader:
-                proposers = {n_id: info for n_id, info in node.nodes.items() if info.get('role') == Roles.PROPOSER.name}
-                if  proposers :
-                    ranges = helpers.assign_ranges(proposers)
-                    print(f"Leader {ranges}")
-                    time.sleep(30)
+                pdf_reader = PDFReader(PDF_PATH)
+                page_count = pdf_reader.get_page_count()
+                for i in range(0,page_count):
+                    text_list = pdf_reader.get_page_text_lines(i)
+                    for j in (0,len(text_list)):
+                        proposers = {n_id: info for n_id, info in node.nodes.items() if info.get('role') == Roles.PROPOSER.name}
+                        if  proposers :
+                            ranges = helpers.assign_ranges(proposers)
+                            for key , data in ranges.items():
+                                node.queue_job(key,f'{data["range"][0]}-{data["range"][1]}',i,j,"My Sample Text")
+                            i =+ 1
+                            # print(f"Leader {ranges}")
 
-
+            if node.role  == Roles.PROPOSER:
+                job = node.jobs.get()
+                letters = helpers.count_words_by_letter(job['letter_range'],job['text'])
+                print(f"{node.id} page {job['page']} line {job['line']} {letters}")
+            time.sleep(5)
     except KeyboardInterrupt:
         print(f"Node {n_id}: Stopping...")
 

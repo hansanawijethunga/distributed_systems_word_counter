@@ -20,3 +20,11 @@ class LeaderElectionService(node_pb2_grpc.LeaderElectionServicer):
         if role == Roles.LEANER.name:
             self.node.role = Roles.LEANER
         return node_pb2.UpdateRoleResponse(success=True)
+
+    def QueueJob(self,request,context):
+        page = request.page
+        line = request.line
+        letter_range = request.range
+        text = request.text
+        self.node.jobs.put({"page":page,"line":line,"letter_range":letter_range,"text":text})
+        return node_pb2.AcknowledgementResponse(success=True)
