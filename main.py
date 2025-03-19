@@ -1,4 +1,5 @@
 import socket
+import string
 import threading
 import time
 import multiprocessing
@@ -48,43 +49,88 @@ class LeaderElectionService(node_pb2_grpc.LeaderElectionServicer):
         # self.node.start_election()
         return node_pb2.ChallengeResponse(acknowledged=True)
 
-    def set_role(self, request, context):
-        role = request.role
-        if role == Roles.PROPOSER:
+    def UpdateRole(self, request, context):
+        role = request.new_role
+        if role == Roles.PROPOSER.name:
             self.node.role = Roles.PROPOSER
-        if role == Roles.ACCEPTOR:
+        if role == Roles.ACCEPTOR.name:
             self.node.role = Roles.ACCEPTOR
-        if role == Roles.LEANER:
+        if role == Roles.LEANER.name:
             self.node.role = Roles.LEANER
-        return node_pb2.SetRoleResponse(success=True)
+        return node_pb2.UpdateRoleResponse(success=True)
 
 
 def get_assign_role(nodes):
     # Only one learner should exist.
     # If no learner exists, assign the first new node as learner.
-    if nodes[Roles.LEANER] == 0:
-        nodes[Roles.LEANER] += 1
+    if nodes[Roles.LEANER.name] == 0:
         return Roles.LEANER
 
     # Ensure at least one proposer.
-    if nodes[Roles.PROPOSER] == 0:
-        nodes[Roles.PROPOSER] += 1
+    if nodes[Roles.PROPOSER.name] == 0:
         return Roles.PROPOSER
 
     # Ensure at least three acceptors.
-    if nodes[Roles.ACCEPTOR] < 3:
-        nodes[Roles.ACCEPTOR] += 1
+    if nodes[Roles.ACCEPTOR.name] < 3:
         return Roles.ACCEPTOR
 
     # After the stable configuration (1 learner, 1 proposer, 3 acceptors),
     # we first add acceptors to the system.
-    if nodes[Roles.ACCEPTOR] < 2 * nodes[Roles.PROPOSER]:
-        nodes[Roles.ACCEPTOR] += 1
+    if nodes[Roles.ACCEPTOR.name] < 2 * nodes[Roles.PROPOSER.name]:
         return Roles.ACCEPTOR
-
     # Only add a proposer if we have at least two acceptors for every proposer.
-    nodes[Roles.PROPOSER] += 1
     return Roles.PROPOSER
+
+
+def assign_ranges(nodes: dict) -> dict:
+    """
+    Given a dictionary of nodes (each with "other info"),
+    assigns a letter range to each node evenly from A to Z.
+
+    Each node gets a contiguous block of letters. The assigned range
+    is represented as a list containing the first and last letter of the block.
+
+    Example:
+    Input: {
+        12: {"other info": "foo"},
+        13: {"other info": "bar"}
+    }
+    Output: {
+        12: {"other info": "foo", "range": ["A", "M"]},
+        13: {"other info": "bar", "range": ["N", "Z"]}
+    }
+    """
+    # Total letters (A-Z)
+    letters = list(string.ascii_uppercase)  # ['A', 'B', ..., 'Z']
+    total_letters = len(letters)
+
+    # Total available nodes
+    total_nodes = len(nodes)
+
+    # Determine base size of each segment and the remainder
+    base_size = total_letters // total_nodes  # integer division
+    remainder = total_letters % total_nodes  # extra letters to distribute
+
+    # Sort the nodes by key (assuming keys can be ordered)
+    sorted_keys = sorted(nodes.keys())
+
+    start = 0
+    for i, key in enumerate(sorted_keys):
+        # Distribute one extra letter to the first "remainder" nodes
+        extra = 1 if i < remainder else 0
+        end = start + base_size + extra
+
+        # Get the assigned letters for this node
+        assigned_letters = letters[start:end]
+        if assigned_letters:
+            # Represent range as [first_letter, last_letter]
+            nodes[key]["range"] = [assigned_letters[0], assigned_letters[-1]]
+        else:
+            nodes[key]["range"] = []
+
+        start = end  # Update starting index for next node
+
+    return nodes
 
 
 class Node:
@@ -112,14 +158,14 @@ class Node:
         for higher_id in sorted(self.nodes.keys(), reverse=True):
             if higher_id > self.id:
                 try:
-                    print(f"Node {self.id} challenging node {higher_id} through port {GRPC_PORT_OFFSET + higher_id}")
+                    # print(f"Node {self.id} challenging node {higher_id} through port {GRPC_PORT_OFFSET + higher_id}")
                     channel = grpc.insecure_channel(f"localhost:{GRPC_PORT_OFFSET + higher_id}")
                     stub = node_pb2_grpc.LeaderElectionStub(channel)
                     challenge_request = node_pb2.ChallengeRequest(node_id=self.id)
                     response = stub.Challenge(challenge_request)
                     # print(response)
                     if response.acknowledged:
-                        print(f"Node {self.id}: Acknowledgment received from {higher_id}")
+                        # print(f"Node {self.id}: Acknowledgment received from {higher_id}")
                         response = response or True
                 except Exception as e:
                     print(f"Node {self.id}: Failed to communicate with {higher_id} ({e})")
@@ -128,19 +174,20 @@ class Node:
 
 
 
-    def updater_role_in_nodes(self,n_id,role_id):
+    def updater_role_in_nodes(self,n_id,role):
         try:
             print(f"Leader  Setting Role of the node {n_id} through port {GRPC_PORT_OFFSET + n_id}")
             channel = grpc.insecure_channel(f"localhost:{GRPC_PORT_OFFSET + n_id}")
             stub = node_pb2_grpc.LeaderElectionStub(channel)
-            update_role_request = node_pb2.UpdateRoleRequest(new_role=role_id)
-            response = stub.Challenge(update_role_request)
+            update_role_request = node_pb2.UpdateRoleRequest(new_role=role)
+            response = stub.UpdateRole(update_role_request)
             # print(response)
             if response.success:
                 print(f"Node {self.id}: Acknowledgment received from {n_id}")
-            # return response.success
+            return response.success
         except Exception as e:
             print(f"Node {self.id}: Failed to communicate with {n_id} ({e})")
+            return False
 
 
 
@@ -213,19 +260,22 @@ class Node:
     def send_heartbeat(self):
         """Sends a heartbeat message periodically."""
         while True:
-            heartbeat_message = f"{self.id}-LeaderHeartbeat-".encode() if self.isLeader else f"{self.id}-Heartbeat-{self.role}".encode()
+            heartbeat_message = f"{self.id}-LeaderHeartbeat-".encode() if self.isLeader else f"{self.id}-Heartbeat-{self.role.name}".encode()
             sock = _create_socket(is_receiver=False)
             sock.sendto(heartbeat_message, (MULTICAST_GROUP, self.port))
             sock.close()
             time.sleep(10)
 
     def check_unassigned_roles_roles(self):
-        print(self.nodes)
+        # print(self.nodes)
         for n_id,node in self.nodes.items() :
-            if node["role"] == Roles.UNASSIGNED :
+            if node["role"] == Roles.UNASSIGNED.name :
+                # print("Matched")
                 nodes =self.gate_node_count()
-                role = get_assign_role(nodes)
-                self.updater_role_in_nodes(n_id,role)
+                role = get_assign_role(nodes).name
+                status = self.updater_role_in_nodes(n_id,role)
+                if status :
+                    self.nodes[n_id]["role"] = role
 
     def check_inactive_nodes(self, timeout=30):
         """Checks for inactive nodes and triggers re-election if necessary."""
@@ -251,14 +301,14 @@ class Node:
 
 
     def gate_node_count(self):
-        nodes = {Roles.PROPOSER : 0 , Roles.ACCEPTOR:0 , Roles.LEANER:0}
-        for node in self.nodes:
-            if node["role"] == Roles.PROPOSER:
-                nodes[ Roles.PROPOSER] += 1
-            if node["role"] == Roles.ACCEPTOR:
-                nodes[Roles.ACCEPTOR] += 1
-            if node["role"] == Roles.LEANER:
-                nodes[Roles.LEANER] += 1
+        nodes = {Roles.PROPOSER.name : 0 , Roles.ACCEPTOR.name:0 , Roles.LEANER.name:0}
+        for _,node in self.nodes.items():
+            if node["role"] == Roles.PROPOSER.name:
+                nodes[ Roles.PROPOSER.name]+= 1
+            if node["role"] == Roles.ACCEPTOR.name:
+                nodes[Roles.ACCEPTOR.name] += 1
+            if node["role"] == Roles.LEANER.name:
+                nodes[Roles.LEANER.name] += 1
         return  nodes
 
 
@@ -296,11 +346,12 @@ def start_node(n_id):
                     node.start_election()
 
             if node.isLeader:
-                pass
-            if node.isLeader:
-                print(f"Node {node.id}: Active nodes: {node.nodes}")
-                time.sleep(10)
-            # print(f"Node {node.id} Leader {node.leader_id}")
+                proposers = {n_id: info for n_id, info in node.nodes.items() if info.get('role') == Roles.PROPOSER.name}
+                if  proposers :
+                    ranges = assign_ranges(proposers)
+                    print(f"Leader {ranges}")
+                    time.sleep(30)
+
 
     except KeyboardInterrupt:
         print(f"Node {n_id}: Stopping...")
