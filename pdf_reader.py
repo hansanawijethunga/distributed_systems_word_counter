@@ -82,7 +82,11 @@ if __name__ == "__main__":
     print(f"Total Pages: {page_count}")
 
     # Get line-by-line text for a specific page (e.g., page 1)
-    page_number = 1154
+    page_number = 0
     lines = pdf_reader.get_page_text_lines(page_number)
-    for line in lines:
-        print(line)
+    print(lines)
+    j= 0
+    while j < len(lines):
+        print(lines[j])
+        j= j+1
+

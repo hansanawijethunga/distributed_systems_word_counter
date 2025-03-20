@@ -26,11 +26,62 @@ def start_threads(node):
     grpc_thread.start()
 
 
+def leader(node):
+    pdf_reader = PDFReader(PDF_PATH)
+    page_count = pdf_reader.get_page_count()
+    for i in range(0, page_count):
+        # print(f"Reading page {i}")
+        text_list = pdf_reader.get_page_text_lines(i)
+        j = 0
+        while j < len(text_list):  # Use while loop for manual control
+            status = True
+            # print(text_list[j])
+            print(f"Reading page {i} line {j} of {len(text_list)}")
+            # print(f"Nodes {node.nodes}")
+            proposers = {n_id: info for n_id, info in node.nodes.items() if info.get('role') == Roles.PROPOSER.name}
+            # print(f"Proposers {proposers}")
+            # time.sleep(5)
+            if proposers:
+                ranges = helpers.assign_ranges(proposers)
+                # print(ranges)
+                # time.sleep(10)
+                for key, data in ranges.items():
+                    status = status and node.queue_job(key, f'{data["range"][0]}-{data["range"][1]}', i, j,
+                                                       text_list[j])
+                    if not status:
+                        break
+                if status:
+                    j += 1
+        time.sleep(10)
+
+def proposer(node):
+    job = node.jobs.get()
+    letters = helpers.count_words_by_letter(job['letter_range'], job['text'])
+    print(f"{node.id} {job['text']} letters {letters}")
+    time.sleep(5)
+    for key, count in letters.items():
+        node.send_proposal(f"{str(node.id)}{str(job['page']).zfill(4)}{str(job['line']).zfill(3)}{key}", count)
+        start_time = time.time()
+        # print(
+        #     f"Promise Count {len(node.proposal_promises)} <= node count {len(node.get_nodes_by_role(Roles.ACCEPTOR)) // 2}")
+        while len(node.proposal_promises) <= len(node.get_nodes_by_role(Roles.ACCEPTOR)) // 2:
+            # print(
+            #     f"Promise Count {len(node.proposal_promises)} <= node count {len(node.get_nodes_by_role(Roles.ACCEPTOR)) // 2}")
+            if time.time() - start_time >= 5:
+                print(f"{node.id} resend proposal to Acceptors")
+                node.send_proposal(f"{str(node.id)}{str(job['page']).zfill(4)}{str(job['line']).zfill(3)}{key}",
+                                   count)
+                start_time = time.time()
+        node.proposal_promises = []
+
+def acceptor(node):
+    pass
+
+
 
 def start_node(n_id):
     node = Node(n_id)
     start_threads(node)
-
     try:
         while True:
 
@@ -42,24 +93,12 @@ def start_node(n_id):
                     node.start_election()
 
             if node.isLeader:
-                pdf_reader = PDFReader(PDF_PATH)
-                page_count = pdf_reader.get_page_count()
-                for i in range(0,page_count):
-                    text_list = pdf_reader.get_page_text_lines(i)
-                    for j in (0,len(text_list)):
-                        proposers = {n_id: info for n_id, info in node.nodes.items() if info.get('role') == Roles.PROPOSER.name}
-                        if  proposers :
-                            ranges = helpers.assign_ranges(proposers)
-                            for key , data in ranges.items():
-                                node.queue_job(key,f'{data["range"][0]}-{data["range"][1]}',i,j,"My Sample Text")
-                            i =+ 1
-                            # print(f"Leader {ranges}")
-
+                leader(node)
             if node.role  == Roles.PROPOSER:
-                job = node.jobs.get()
-                letters = helpers.count_words_by_letter(job['letter_range'],job['text'])
-                print(f"{node.id} page {job['page']} line {job['line']} {letters}")
-            time.sleep(5)
+                proposer(node)
+            if node.role == Roles.ACCEPTOR:
+                acceptor(node)
+
     except KeyboardInterrupt:
         print(f"Node {n_id}: Stopping...")
 

@@ -14,7 +14,7 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\nnode.proto\x12\x0fleader_election\".\n\x10\x43hallengeRequest\x12\x1a\n\x12\x63hallenger_node_id\x18\x01 \x01(\x05\")\n\x11\x43hallengeResponse\x12\x14\n\x0c\x61\x63knowledged\x18\x01 \x01(\x08\"%\n\x11UpdateRoleRequest\x12\x10\n\x08new_role\x18\x01 \x01(\t\"%\n\x12UpdateRoleResponse\x12\x0f\n\x07success\x18\x01 \x01(\x08\"E\n\nJobRequest\x12\x0c\n\x04page\x18\x01 \x01(\x05\x12\x0c\n\x04line\x18\x02 \x01(\x05\x12\r\n\x05range\x18\x03 \x01(\t\x12\x0c\n\x04text\x18\x04 \x01(\t\"*\n\x17\x41\x63knowledgementResponse\x12\x0f\n\x07success\x18\x01 \x01(\x08\x32\x8e\x02\n\x0eLeaderElection\x12R\n\tChallenge\x12!.leader_election.ChallengeRequest\x1a\".leader_election.ChallengeResponse\x12U\n\nUpdateRole\x12\".leader_election.UpdateRoleRequest\x1a#.leader_election.UpdateRoleResponse\x12Q\n\x08QueueJob\x12\x1b.leader_election.JobRequest\x1a(.leader_election.AcknowledgementResponseb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\nnode.proto\x12\x0fleader_election\"#\n\x10\x43hallengeRequest\x12\x0f\n\x07node_id\x18\x01 \x01(\x05\")\n\x11\x43hallengeResponse\x12\x14\n\x0c\x61\x63knowledged\x18\x01 \x01(\x08\"%\n\x11UpdateRoleRequest\x12\x10\n\x08new_role\x18\x01 \x01(\t\"&\n\x0fProposalRequest\x12\x13\n\x0bproposal_no\x18\x01 \x01(\t\"%\n\x12UpdateRoleResponse\x12\x0f\n\x07success\x18\x01 \x01(\x08\"E\n\nJobRequest\x12\x0c\n\x04page\x18\x01 \x01(\x05\x12\x0c\n\x04line\x18\x02 \x01(\x05\x12\r\n\x05range\x18\x03 \x01(\t\x12\x0c\n\x04text\x18\x04 \x01(\t\"*\n\x17\x41\x63knowledgementResponse\x12\x0f\n\x07success\x18\x01 \x01(\x08\"K\n\x0ePromiseRequest\x12\x0f\n\x07node_id\x18\x01 \x01(\x05\x12\x17\n\x0fproposal_number\x18\x02 \x01(\t\x12\x0f\n\x07promise\x18\x03 \x01(\x08\x32\xec\x02\n\x0eLeaderElection\x12R\n\tChallenge\x12!.leader_election.ChallengeRequest\x1a\".leader_election.ChallengeResponse\x12U\n\nUpdateRole\x12\".leader_election.UpdateRoleRequest\x1a#.leader_election.UpdateRoleResponse\x12Q\n\x08QueueJob\x12\x1b.leader_election.JobRequest\x1a(.leader_election.AcknowledgementResponse\x12\\\n\x0fPromiseProposal\x12\x1f.leader_election.PromiseRequest\x1a(.leader_election.AcknowledgementResponseb\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -22,17 +22,21 @@ _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'node_pb2', _globals)
 if not _descriptor._USE_C_DESCRIPTORS:
   DESCRIPTOR._loaded_options = None
   _globals['_CHALLENGEREQUEST']._serialized_start=31
-  _globals['_CHALLENGEREQUEST']._serialized_end=77
-  _globals['_CHALLENGERESPONSE']._serialized_start=79
-  _globals['_CHALLENGERESPONSE']._serialized_end=120
-  _globals['_UPDATEROLEREQUEST']._serialized_start=122
-  _globals['_UPDATEROLEREQUEST']._serialized_end=159
-  _globals['_UPDATEROLERESPONSE']._serialized_start=161
-  _globals['_UPDATEROLERESPONSE']._serialized_end=198
-  _globals['_JOBREQUEST']._serialized_start=200
-  _globals['_JOBREQUEST']._serialized_end=269
-  _globals['_ACKNOWLEDGEMENTRESPONSE']._serialized_start=271
-  _globals['_ACKNOWLEDGEMENTRESPONSE']._serialized_end=313
-  _globals['_LEADERELECTION']._serialized_start=316
-  _globals['_LEADERELECTION']._serialized_end=586
+  _globals['_CHALLENGEREQUEST']._serialized_end=66
+  _globals['_CHALLENGERESPONSE']._serialized_start=68
+  _globals['_CHALLENGERESPONSE']._serialized_end=109
+  _globals['_UPDATEROLEREQUEST']._serialized_start=111
+  _globals['_UPDATEROLEREQUEST']._serialized_end=148
+  _globals['_PROPOSALREQUEST']._serialized_start=150
+  _globals['_PROPOSALREQUEST']._serialized_end=188
+  _globals['_UPDATEROLERESPONSE']._serialized_start=190
+  _globals['_UPDATEROLERESPONSE']._serialized_end=227
+  _globals['_JOBREQUEST']._serialized_start=229
+  _globals['_JOBREQUEST']._serialized_end=298
+  _globals['_ACKNOWLEDGEMENTRESPONSE']._serialized_start=300
+  _globals['_ACKNOWLEDGEMENTRESPONSE']._serialized_end=342
+  _globals['_PROMISEREQUEST']._serialized_start=344
+  _globals['_PROMISEREQUEST']._serialized_end=419
+  _globals['_LEADERELECTION']._serialized_start=422
+  _globals['_LEADERELECTION']._serialized_end=786
 # @@protoc_insertion_point(module_scope)

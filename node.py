@@ -27,6 +27,9 @@ class Node:
         self.leader_id = tuple()
         self.isLeader = False
         self.jobs = queue.Queue()
+        self.words_count ={}
+        self.proposals = queue.Queue()
+        self.proposal_promises = []
 
     def start_grpc_server(self):
         """Starts the gRPC server for handling leader election challenges."""
@@ -112,7 +115,7 @@ class Node:
                 if headers[1] == "Heartbeat" and n_id != self.id:
                     # print(f"Node {self.id}:Receive Heartbeat from {n_id}")
                     self.nodes[n_id] = {'time': time.time(), 'role': headers[2]}
-                elif headers[1] == "LeaderHeartbeat" and n_id != self.id:
+                if headers[1] == "LeaderHeartbeat" and n_id != self.id:
                     # print(f"Node {self.id}:Receive Leader Heartbeat from {n_id}")
                     if not self.leader_id:
                         self.set_leader(n_id) #set a leader if no leader found
@@ -120,13 +123,41 @@ class Node:
                         self.leader_id = ()  #set your leader id to empty when different  heartbeat
                     else:
                         self.leader_id = (n_id, time.time()) # update the timestamp if the leaderid is same
-                elif headers[1] == "I am the leader" and n_id != self.id:
+                if headers[1] == "I am the leader" and n_id != self.id:
                     self.set_leader(n_id)
+                if self.role == Roles.ACCEPTOR and headers[1] == "Prepare":
+                    # print(f"Prepare message Recieved from {n_id} proposal number {headers[2]} value {headers[3]}")
+                    self.proposals.put((n_id,headers[2],headers[3]))
+                    self.promise_proposal(n_id,headers[2])
+
+
+
 
         except KeyboardInterrupt:
             print(f"Node {self.id}: Receiver stopped.")
         finally:
             sock.close()
+
+
+    def promise_proposal(self,n_id,proposal_number):
+        try:
+            channel = grpc.insecure_channel(f"localhost:{GRPC_PORT_OFFSET + n_id}")
+            stub = node_pb2_grpc.LeaderElectionStub(channel)
+            promise_request = node_pb2.PromiseRequest(node_id=self.id, proposal_number=proposal_number, promise=True)
+            response = stub.PromiseProposal(promise_request)
+            # print(response)
+            if response.success:
+                return response.success
+        except Exception as e:
+            print(f"Node {self.id}: Failed to communicate with {n_id} ({e})")
+            return False
+
+
+    def get_nodes_by_role(self,node_role):
+        return {n_id: info for n_id, info in self.nodes.items() if info.get('role') == node_role.name}
+
+
+            
 
     def set_leader(self,n_id):
         if self.isLeader:
@@ -198,9 +229,10 @@ class Node:
     def queue_job(self,n_id,letter_range,page,line,text):
         try:
             # print(f"Leader  queuing jobs to {n_id} through port {GRPC_PORT_OFFSET + n_id}")
+            new_text = text.replace("-", "")
             channel = grpc.insecure_channel(f"localhost:{GRPC_PORT_OFFSET + n_id}")
             stub = node_pb2_grpc.LeaderElectionStub(channel)
-            job_request = node_pb2.JobRequest(range=letter_range,text=text,page=page,line=line)
+            job_request = node_pb2.JobRequest(range=letter_range,text=new_text,page=page,line=line)
             response = stub.QueueJob(job_request)
             # print(response)
             if response.success:
@@ -208,3 +240,10 @@ class Node:
         except Exception as e:
             print(f"Node {self.id}: Failed to communicate with {n_id} ({e})")
             return False
+
+    def send_proposal(self,proposal_number,value):
+        prepare_message = f"{self.id}-Prepare-{proposal_number}-{value}".encode()
+        sock = helpers.create_socket(is_receiver=False)
+        sock.sendto(prepare_message, (MULTICAST_GROUP, self.port))
+        sock.close()
+        time.sleep(10)

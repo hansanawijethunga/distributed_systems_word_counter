@@ -28,3 +28,11 @@ class LeaderElectionService(node_pb2_grpc.LeaderElectionServicer):
         text = request.text
         self.node.jobs.put({"page":page,"line":line,"letter_range":letter_range,"text":text})
         return node_pb2.AcknowledgementResponse(success=True)
+
+    def PromiseProposal(self,request,context):
+        node_id = request.node_id
+        self.node.proposal_promises.append(node_id)
+        return node_pb2.AcknowledgementResponse(success=True)
+
+
+

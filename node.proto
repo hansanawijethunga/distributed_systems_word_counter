@@ -12,11 +12,13 @@ service LeaderElection {
 
   // Queue a job to be processed
   rpc QueueJob (JobRequest) returns (AcknowledgementResponse);
+
+  rpc PromiseProposal (PromiseRequest) returns (AcknowledgementResponse);
 }
 
 // Request sent when challenging a higher node
 message ChallengeRequest {
-  int32 challenger_node_id = 1;     // Node making the challenge
+  int32 node_id = 1;     // Node making the challenge
 }
 
 // Response to a challenge message
@@ -27,6 +29,10 @@ message ChallengeResponse {
 // Request to update the role of a node
 message UpdateRoleRequest {
   string new_role = 1; // The new role for the node
+}
+
+message ProposalRequest {
+  string proposal_no = 1; // The new role for the node
 }
 
 // Response to the role update request
@@ -45,4 +51,10 @@ message JobRequest {
 // Acknowledgement response for job queue action
 message AcknowledgementResponse {
   bool success = 1; // Whether the job was successfully queued
+}
+
+message PromiseRequest {
+  int32 node_id = 1;
+  string proposal_number = 2;
+  bool promise = 3;
 }

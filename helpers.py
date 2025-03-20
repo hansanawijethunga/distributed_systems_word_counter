@@ -96,22 +96,19 @@ def assign_ranges(nodes: dict) -> dict:
 
 
 def count_words_by_letter(letter_range, text):
-    # Extract the start and end letters from the range
     start_letter, end_letter = letter_range.split('-')
+    letter_counts = {chr(letter): 0 for letter in range(ord(start_letter), ord(end_letter) + 1)}
 
-    # Create a dictionary to store the counts
-    letter_counts = {letter: 0 for letter in string.ascii_uppercase}
-
-    # Split the text into words
     words = text.split()
 
-    # Count words starting with letters within the specified range
     for word in words:
-        first_letter = word[0].upper()  # Get the first letter of the word (uppercase)
+        first_letter = word[0].upper()
         if start_letter <= first_letter <= end_letter:
             letter_counts[first_letter] += 1
+    return letter_counts  # Now returning a dictionary
 
-    # Prepare the output as a list of counts for the given range
-    result = [f"{letter}:{letter_counts[letter]}" for letter in range(ord(start_letter), ord(end_letter) + 1)]
 
-    return result
+if __name__ == "__main__":
+    for letter in range(65, 70 + 1):
+        print(letter)
+    count_words_by_letter("A-F","Ay Bample Kext")
