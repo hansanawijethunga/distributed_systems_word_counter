@@ -9,6 +9,7 @@ from helpers import Roles
 from leader_election_service import LeaderElectionService
 import queue
 
+from redis_client import RedisClient
 
 MULTICAST_GROUP = "224.1.1.1"
 BASE_PORT = 5000  # Base port number for calculation
@@ -30,6 +31,10 @@ class Node:
         self.words_count ={}
         self.proposals = queue.Queue()
         self.proposal_promises = []
+        self.proposal_log = {}
+        self.accepted_proposals = queue.Queue()
+        self.result_log = {}
+        self.is_election = False
 
     def start_grpc_server(self):
         """Starts the gRPC server for handling leader election challenges."""
@@ -129,15 +134,15 @@ class Node:
                     # print(f"Prepare message Recieved from {n_id} proposal number {headers[2]} value {headers[3]}")
                     self.proposals.put((n_id,headers[2],headers[3]))
                     self.promise_proposal(n_id,headers[2])
-
-
-
+                if self.role == Roles.LEANER and headers[1] == "Learn":
+                    print("Learner Type")
+                    print(headers[3])
+                    self.accepted_proposals.put((n_id,headers[2],headers[3],len(self.get_nodes_by_role(Roles.ACCEPTOR))))
 
         except KeyboardInterrupt:
             print(f"Node {self.id}: Receiver stopped.")
         finally:
             sock.close()
-
 
     def promise_proposal(self,n_id,proposal_number):
         try:
@@ -163,12 +168,12 @@ class Node:
         if self.isLeader:
             if self.id < n_id:
                 self.leader_id = (n_id, time.time())
-                print(f"Node {self.id}: Recognized leader {n_id}")
+                # print(f"Node {self.id}: Recognized leader {n_id}")
             else:
                 print(f"Node {self.id}: Reject the Leadership offer form {n_id}")
         else:
             self.leader_id = (n_id, time.time())
-            print(f"Node {self.id}: Recognized leader {n_id}")
+            # print(f"Node {self.id}: Recognized leader {n_id}")
 
 
 
@@ -179,7 +184,7 @@ class Node:
             sock = helpers.create_socket(is_receiver=False)
             sock.sendto(heartbeat_message, (MULTICAST_GROUP, self.port))
             sock.close()
-            time.sleep(10)
+            time.sleep(1)
 
     def check_unassigned_roles_roles(self):
         # print(self.nodes)
@@ -192,27 +197,43 @@ class Node:
                 if status :
                     self.nodes[n_id]["role"] = role
 
-    def check_inactive_nodes(self, timeout=30):
+    def check_inactive_nodes(self, timeout=3):
         """Checks for inactive nodes and triggers re-election if necessary."""
         while True:
-            time.sleep(timeout / 2)
-            current_time = time.time()
-            inactive_nodes = [n_id for n_id, data in self.nodes.items() if current_time - data['time'] > timeout]
-            for n_id in inactive_nodes:
-                self.nodes.pop(n_id, None)
-                print(f"Node {self.id}: Removed inactive node {n_id}")
-            if not self.isLeader :
-                if self.leader_id and current_time - self.leader_id[1] > timeout:
-                    self.leader_id = ()
-                    print(f"Node {self.id}: Removed Leader")
-            if self.isLeader:
-                self.check_unassigned_roles_roles()
+            if not self.isLeader:
+                time.sleep(timeout / 2)
+                current_time = time.time()
+                inactive_nodes = [n_id for n_id, data in self.nodes.items() if current_time - data['time'] > timeout]
+                for n_id in inactive_nodes:
+                    self.nodes.pop(n_id, None)
+                    print(f"Node {self.id}: Removed inactive node {n_id}")
+                if not self.isLeader :
+                    if self.leader_id and current_time - self.leader_id[1] > timeout:
+                        self.leader_id = ()
+                        print(f"Node {self.id}: Removed Leader")
+
+
+    def manual_check_inactive_nodes(self,):
+        # 3 seconds for other nodes 10 second for leader
+        current_time = time.time()
+        inactive_nodes = [n_id for n_id, data in self.nodes.items() if current_time - data['time'] > 3]
+        for n_id in inactive_nodes:
+            self.nodes.pop(n_id, None)
+            print(f"Node {self.id}: Removed inactive node {n_id}")
+        if not self.isLeader :
+            if self.leader_id and current_time - self.leader_id[1] > 10:
+                self.leader_id = ()
+                print(f"Node {self.id}: Removed Leader")
 
     def start_election(self):
         """Initiates the leader election process."""
+        time.sleep(3) #waiting for nodes
+        self.manual_check_inactive_nodes()
         acknowledged = self.challenge_higher_nodes()
         if not acknowledged and not self.isLeader:
             self.announce_leadership()
+        time.sleep(2) #Waiitng for other nods annowsments
+        self.is_election = False
 
 
     def gate_node_count(self):
@@ -247,3 +268,32 @@ class Node:
         sock.sendto(prepare_message, (MULTICAST_GROUP, self.port))
         sock.close()
         time.sleep(10)
+
+
+    def validate_proposal(self,proposal):
+        values  =self.proposal_log[proposal]["values"]
+        if values:
+            self.proposal_log[proposal]["accepted"] = helpers.get_most_common_value(values)
+            prepare_message = f"{self.id}-Learn-{proposal}-{self.proposal_log[proposal]['accepted']}".encode()
+            sock = helpers.create_socket(is_receiver=False)
+            sock.sendto(prepare_message, (MULTICAST_GROUP, self.port))
+            sock.close()
+            time.sleep(10)
+
+    def process_leaning(self,proposal):
+        values  =self.result_log[proposal]["values"]
+        most_voted_number = self.result_log[proposal]["acceptor_node_count"]
+        if values:
+            voted_num = helpers.get_most_voted_number(values,most_voted_number)
+            if voted_num is not None:
+                redis_client = RedisClient()
+                print("Setting the final value")
+                redis_client.set_value(proposal,voted_num)
+
+
+
+
+
+
+
+

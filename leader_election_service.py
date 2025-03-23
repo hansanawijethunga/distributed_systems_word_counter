@@ -8,7 +8,7 @@ class LeaderElectionService(node_pb2_grpc.LeaderElectionServicer):
         self.node = node
 
     def Challenge(self, request, context):
-        # self.node.start_election()
+        self.node.is_election = True
         return node_pb2.ChallengeResponse(acknowledged=True)
 
     def UpdateRole(self, request, context):

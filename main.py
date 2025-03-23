@@ -29,82 +29,97 @@ def start_threads(node):
 def leader(node):
     pdf_reader = PDFReader(PDF_PATH)
     page_count = pdf_reader.get_page_count()
+    print("Document Ready")
     for i in range(0, page_count):
         # print(f"Reading page {i}")
         text_list = pdf_reader.get_page_text_lines(i)
         j = 0
-        while j < len(text_list):  # Use while loop for manual control
-            status = True
-            # print(text_list[j])
-            print(f"Reading page {i} line {j} of {len(text_list)}")
-            # print(f"Nodes {node.nodes}")
+        while j < len(text_list):  # loop will not increment if any one of the proposer nodes failed respond back
+            node.manual_check_inactive_nodes() #remove inactive nodes
+            node.check_unassigned_roles_roles() #assign roles in un assigned roles
             proposers = {n_id: info for n_id, info in node.nodes.items() if info.get('role') == Roles.PROPOSER.name}
-            # print(f"Proposers {proposers}")
-            # time.sleep(5)
-            if proposers:
+            acceptor_count = len(node.get_nodes_by_role(Roles.ACCEPTOR))
+            learner_count = len(node.get_nodes_by_role(Roles.LEANER))
+            status = True
+            if proposers and  learner_count == 1 and acceptor_count >1:
                 ranges = helpers.assign_ranges(proposers)
-                # print(ranges)
-                # time.sleep(10)
                 for key, data in ranges.items():
+                    print(f"sending {text_list[j]} to proposer {key} to ")
                     status = status and node.queue_job(key, f'{data["range"][0]}-{data["range"][1]}', i, j,
                                                        text_list[j])
                     if not status:
+                        print(f"FAIL sending {text_list[j]} to proposer {key} to ")
                         break
                 if status:
                     j += 1
+            else:
+                print(f"Waiting for nodes system is in halt")
+                print(f"found {len(proposers)} proposer nodes needs one minium")
+                print(f"found {acceptor_count} Acceptors needs 2 minium")
+                print(f"found {learner_count} Learners needs one")
+                time.sleep(5)
         time.sleep(10)
 
 def proposer(node):
-    job = node.jobs.get()
-    letters = helpers.count_words_by_letter(job['letter_range'], job['text'])
-    print(f"{node.id} {job['text']} letters {letters}")
-    time.sleep(5)
-    for key, count in letters.items():
-        node.send_proposal(f"{str(node.id)}{str(job['page']).zfill(4)}{str(job['line']).zfill(3)}{key}", count)
-        start_time = time.time()
-        # print(
-        #     f"Promise Count {len(node.proposal_promises)} <= node count {len(node.get_nodes_by_role(Roles.ACCEPTOR)) // 2}")
-        while len(node.proposal_promises) <= len(node.get_nodes_by_role(Roles.ACCEPTOR)) // 2:
-            # print(
-            #     f"Promise Count {len(node.proposal_promises)} <= node count {len(node.get_nodes_by_role(Roles.ACCEPTOR)) // 2}")
-            if time.time() - start_time >= 5:
-                print(f"{node.id} resend proposal to Acceptors")
-                node.send_proposal(f"{str(node.id)}{str(job['page']).zfill(4)}{str(job['line']).zfill(3)}{key}",
-                                   count)
-                start_time = time.time()
-        node.proposal_promises = []
+        job = node.jobs.get()
+        letters = helpers.count_words_by_letter(job['letter_range'], job['text'])
+        for key, count in letters.items():
+            node.send_proposal(f"{str(node.id)}{str(job['page']).zfill(4)}{str(job['line']).zfill(3)}{key}", count)
+            start_time = time.time()
+            node.manual_check_inactive_nodes()
+            while len(node.proposal_promises) <= len(node.get_nodes_by_role(Roles.ACCEPTOR)) // 2:
+                if time.time() - start_time >= 5: #if proposal was not accepted by majority retry until it get accepted
+                    print(f"{node.id} resend proposal to Acceptors")
+                    node.send_proposal(f"{str(node.id)}{str(job['page']).zfill(4)}{str(job['line']).zfill(3)}{key}",
+                                       count)
+                    start_time = time.time()
+            node.proposal_promises = []
 
 def acceptor(node):
-    pass
+        node.manual_check_inactive_nodes()
+        n_id, proposal , value = node.proposals.get()
+        if proposal not in node.proposal_log:
+            node.proposal_log[proposal] = {"values": [value], "accepted": None}
+        else:
+            node.proposal_log[proposal]["values"].append(value)
+        node.validate_proposal(proposal)
 
-
+def learner(node):
+        n_id, proposal, value , acceptor_node_count = node.accepted_proposals.get()
+        if proposal not in node.result_log:
+            node.result_log[proposal] = {"values": [value] , "acceptor_node_count":acceptor_node_count}
+        else:
+            node.result_log[proposal]["values"].append(value)
+            node.result_log[proposal]["acceptor_node_count"] = acceptor_node_count
+        node.process_leaning(proposal)
+        time.sleep(5)
 
 def start_node(n_id):
     node = Node(n_id)
     start_threads(node)
     try:
+        print(f"Listening for other nodes")
+        time.sleep(5)
+        if not node.leader_id:
+            print(f"Node {node.id}: Initiating leader election...")
+            node.start_election()
         while True:
-
-            if not node.leader_id :
-                print(f"Node {node.id}: No leader found, waiting...")
-                time.sleep(30)
-                if not node.leader_id :
-                    print(f"Node {node.id}: Initiating leader election...")
-                    node.start_election()
-
+            node.manual_check_inactive_nodes()
+            if node.is_election or not  node.leader_id:
+                node.start_election()
+            node.manual_check_inactive_nodes()
             if node.isLeader:
-                leader(node)
+                leader(node) #infinite loop
             if node.role  == Roles.PROPOSER:
-                proposer(node)
+                proposer(node) #infinite loop
             if node.role == Roles.ACCEPTOR:
-                acceptor(node)
+                acceptor(node) #infinite loop
+            if node.role == Roles.LEANER:
+                learner(node) #infinite loop
+
 
     except KeyboardInterrupt:
         print(f"Node {n_id}: Stopping...")
-
-
-
-
 
 if __name__ == "__main__":
     if len(sys.argv) > 1 and sys.argv[1] == "single_run":

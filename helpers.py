@@ -1,6 +1,7 @@
 from enum import Enum
 import socket
 import string
+from collections import Counter
 
 
 TTL = 2
@@ -107,8 +108,41 @@ def count_words_by_letter(letter_range, text):
             letter_counts[first_letter] += 1
     return letter_counts  # Now returning a dictionary
 
+def get_most_common_value(values):
+    counter = Counter(values)
+    most_common = counter.most_common()
+    if len(most_common) == 1:
+        return most_common[0][0]
+    max_count = most_common[0][1]
+    top_values = [val for val, count in most_common if count == max_count]
+    accepted_value = top_values[0] if len(top_values) == 1 else None
+    return accepted_value
+
+
+def get_most_voted_number(nums,total_voter_count):
+    print("Totla Voter Count")
+    print(total_voter_count)
+    if len(nums) > total_voter_count:
+        raise ValueError("Array length cannot exceed total_voter_count")
+
+        # Boyer-Moore Voting Algorithm to find a candidate
+    candidate, count = None, 0
+    for num in nums:
+        if count == 0:
+            candidate, count = num, 1
+        elif num == candidate:
+            count += 1
+        else:
+            count -= 1
+
+    # Verify the candidate
+    if nums.count(candidate) > total_voter_count // 2:
+        return candidate
+    return None  # No majority element
+
+
 
 if __name__ == "__main__":
-    for letter in range(65, 70 + 1):
-        print(letter)
-    count_words_by_letter("A-F","Ay Bample Kext")
+    nums1 = [4,3,3,3,3]
+    total_voter_count1 = 8
+    print(get_most_voted_number(nums1, total_voter_count1))  # Output: 3

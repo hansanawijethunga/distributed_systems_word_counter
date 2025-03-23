@@ -28,10 +28,10 @@ class PDFReader:
                 print(f"Error with PyMuPDF: {e}")
                 self.library = None
 
-        if self.library:
-            print(f"Using {self.library} to process the PDF.")
-        else:
-            print("No suitable library found to open the PDF.")
+        # if self.library:
+        #     print(f"Using {self.library} to process the PDF.")
+        # else:
+        #     print("No suitable library found to open the PDF.")
 
     def get_page_count(self):
         return self.page_count
