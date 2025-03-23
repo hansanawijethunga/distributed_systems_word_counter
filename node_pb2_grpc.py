@@ -60,6 +60,16 @@ class LeaderElectionStub(object):
                 request_serializer=node__pb2.PromiseRequest.SerializeToString,
                 response_deserializer=node__pb2.AcknowledgementResponse.FromString,
                 _registered_method=True)
+        self.InformFinalResult = channel.unary_unary(
+                '/leader_election.LeaderElection/InformFinalResult',
+                request_serializer=node__pb2.ResultRequest.SerializeToString,
+                response_deserializer=node__pb2.AcknowledgementResponse.FromString,
+                _registered_method=True)
+        self.InformLeanerRequest = channel.unary_unary(
+                '/leader_election.LeaderElection/InformLeanerRequest',
+                request_serializer=node__pb2.LeanerRequest.SerializeToString,
+                response_deserializer=node__pb2.AcknowledgementResponse.FromString,
+                _registered_method=True)
 
 
 class LeaderElectionServicer(object):
@@ -93,6 +103,18 @@ class LeaderElectionServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def InformFinalResult(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def InformLeanerRequest(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_LeaderElectionServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -114,6 +136,16 @@ def add_LeaderElectionServicer_to_server(servicer, server):
             'PromiseProposal': grpc.unary_unary_rpc_method_handler(
                     servicer.PromiseProposal,
                     request_deserializer=node__pb2.PromiseRequest.FromString,
+                    response_serializer=node__pb2.AcknowledgementResponse.SerializeToString,
+            ),
+            'InformFinalResult': grpc.unary_unary_rpc_method_handler(
+                    servicer.InformFinalResult,
+                    request_deserializer=node__pb2.ResultRequest.FromString,
+                    response_serializer=node__pb2.AcknowledgementResponse.SerializeToString,
+            ),
+            'InformLeanerRequest': grpc.unary_unary_rpc_method_handler(
+                    servicer.InformLeanerRequest,
+                    request_deserializer=node__pb2.LeanerRequest.FromString,
                     response_serializer=node__pb2.AcknowledgementResponse.SerializeToString,
             ),
     }
@@ -225,6 +257,60 @@ class LeaderElection(object):
             target,
             '/leader_election.LeaderElection/PromiseProposal',
             node__pb2.PromiseRequest.SerializeToString,
+            node__pb2.AcknowledgementResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def InformFinalResult(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/leader_election.LeaderElection/InformFinalResult',
+            node__pb2.ResultRequest.SerializeToString,
+            node__pb2.AcknowledgementResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def InformLeanerRequest(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/leader_election.LeaderElection/InformLeanerRequest',
+            node__pb2.LeanerRequest.SerializeToString,
             node__pb2.AcknowledgementResponse.FromString,
             options,
             channel_credentials,

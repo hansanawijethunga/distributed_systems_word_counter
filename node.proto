@@ -14,6 +14,10 @@ service LeaderElection {
   rpc QueueJob (JobRequest) returns (AcknowledgementResponse);
 
   rpc PromiseProposal (PromiseRequest) returns (AcknowledgementResponse);
+
+  rpc InformFinalResult(ResultRequest) returns (AcknowledgementResponse);
+
+  rpc InformLeanerRequest(LeanerRequest) returns (AcknowledgementResponse);
 }
 
 // Request sent when challenging a higher node
@@ -57,4 +61,14 @@ message PromiseRequest {
   int32 node_id = 1;
   string proposal_number = 2;
   bool promise = 3;
+}
+
+message ResultRequest {
+string proposal_number = 1;
+}
+
+message LeanerRequest {
+string proposal_number = 1;
+int32 value = 2;
+int32 node_id = 3;
 }

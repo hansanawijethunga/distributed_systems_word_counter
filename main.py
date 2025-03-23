@@ -18,10 +18,10 @@ def start_threads(node):
     #
     heartbeat_thread = threading.Thread(target=node.send_heartbeat, daemon=True)
     heartbeat_thread.start()
-    #
+
     cleanup_thread = threading.Thread(target=node.check_inactive_nodes, daemon=True)
     cleanup_thread.start()
-    #
+
     grpc_thread = threading.Thread(target=node.start_grpc_server, daemon=True)
     grpc_thread.start()
 
@@ -35,6 +35,10 @@ def leader(node):
         text_list = pdf_reader.get_page_text_lines(i)
         j = 0
         while j < len(text_list):  # loop will not increment if any one of the proposer nodes failed respond back
+            if not node.isLeader:
+                print("Not the leader anymore stopping all operations")
+                return
+            node.initiate_new_line(i,j)
             node.manual_check_inactive_nodes() #remove inactive nodes
             node.check_unassigned_roles_roles() #assign roles in un assigned roles
             proposers = {n_id: info for n_id, info in node.nodes.items() if info.get('role') == Roles.PROPOSER.name}
@@ -44,55 +48,91 @@ def leader(node):
             if proposers and  learner_count == 1 and acceptor_count >1:
                 ranges = helpers.assign_ranges(proposers)
                 for key, data in ranges.items():
-                    print(f"sending {text_list[j]} to proposer {key} to ")
+                    print(f"sending page {i} line {j} {text_list[j]} to proposer {key} to ")
                     status = status and node.queue_job(key, f'{data["range"][0]}-{data["range"][1]}', i, j,
                                                        text_list[j])
                     if not status:
-                        print(f"FAIL sending {text_list[j]} to proposer {key} to ")
+                        print(f"FAIL sending page {i} line {j} {text_list[j]} to proposer {key} to ")
                         break
                 if status:
-                    j += 1
+                    increment_flag = True
+                    start_time = time.time()
+                    while not node.line_ready:
+                        node.manual_check_inactive_nodes()  # remove inactive nodes
+                        node.check_unassigned_roles_roles() # assign un assigned nodes
+                        if time.time() - start_time >= 3 * 60:
+                            increment_flag = False
+                            print("All the votes not found, retrying line")
+                            break
+                    if  increment_flag :
+                        j += 1
+
+
+
             else:
                 print(f"Waiting for nodes system is in halt")
                 print(f"found {len(proposers)} proposer nodes needs one minium")
                 print(f"found {acceptor_count} Acceptors needs 2 minium")
                 print(f"found {learner_count} Learners needs one")
                 time.sleep(5)
-        time.sleep(10)
+            # time.sleep(120)
+    print("Document Completed")
+    time.sleep(1000)
 
 def proposer(node):
-        job = node.jobs.get()
-        letters = helpers.count_words_by_letter(job['letter_range'], job['text'])
-        for key, count in letters.items():
-            node.send_proposal(f"{str(node.id)}{str(job['page']).zfill(4)}{str(job['line']).zfill(3)}{key}", count)
-            start_time = time.time()
+        if not node.jobs.empty():
+            print("Start getting the job")
+            job = node.jobs.get()
+            print("Start got the job")
+            letters = helpers.count_words_by_letter(job['letter_range'], job['text'])
             node.manual_check_inactive_nodes()
-            while len(node.proposal_promises) <= len(node.get_nodes_by_role(Roles.ACCEPTOR)) // 2:
-                if time.time() - start_time >= 5: #if proposal was not accepted by majority retry until it get accepted
-                    print(f"{node.id} resend proposal to Acceptors")
-                    node.send_proposal(f"{str(node.id)}{str(job['page']).zfill(4)}{str(job['line']).zfill(3)}{key}",
-                                       count)
-                    start_time = time.time()
-            node.proposal_promises = []
+            for key, count in letters.items():
+                proposal_number = f"{str(job['page']).zfill(4)}{str(job['line']).zfill(3)}{key}"
+                print(f"Sending the proposal number {proposal_number} for the text {job['text']} calculated value {count}")
+                node.send_proposal(proposal_number, count)
+                start_time = time.time()
+                while  len(node.get_nodes_by_role(Roles.ACCEPTOR)) <2 or len(node.proposal_promises) <= len(node.get_nodes_by_role(Roles.ACCEPTOR)) // 2:
+                    if not node.leader_id:
+                        return
+                    if time.time() - start_time >= 5: #if proposal was not accepted by majority retry until it get accepted
+                        print(f"node {node.id} resend proposal to Acceptors")
+                        node.manual_check_inactive_nodes()
+                        node.send_proposal(f"{str(node.id)}{str(job['page']).zfill(4)}{str(job['line']).zfill(3)}{key}",
+                                           count)
+                        start_time = time.time()
+                node.proposal_promises = []
+        else:
+            print(f"{node.role.name} Que Empty")
 
 def acceptor(node):
-        node.manual_check_inactive_nodes()
-        n_id, proposal , value = node.proposals.get()
-        if proposal not in node.proposal_log:
-            node.proposal_log[proposal] = {"values": [value], "accepted": None}
+        if not node.proposals.empty():
+            n_id, proposal , value = node.proposals.get()
+            print(f"Evaluating the Proposal {proposal} value {value}")
+            if proposal not in node.proposal_log:
+                node.proposal_log[proposal] = {"values": [value], "accepted": None}
+            else:
+                node.proposal_log[proposal]["values"].append(value)
+            result = False
+            while not result:
+                result = node.validate_proposal(proposal)
+                if result:
+                    break
+                print(f"{node.role.name} failed to inform leander retrying")
+                time.sleep(2)
+                node.manual_check_inactive_nodes()
+                if not node.leader_id:
+                    return
         else:
-            node.proposal_log[proposal]["values"].append(value)
-        node.validate_proposal(proposal)
+            print("Acceptor Que Empty")
 
 def learner(node):
-        n_id, proposal, value , acceptor_node_count = node.accepted_proposals.get()
-        if proposal not in node.result_log:
-            node.result_log[proposal] = {"values": [value] , "acceptor_node_count":acceptor_node_count}
-        else:
-            node.result_log[proposal]["values"].append(value)
-            node.result_log[proposal]["acceptor_node_count"] = acceptor_node_count
-        node.process_leaning(proposal)
-        time.sleep(5)
+        if not node.accepted_proposals.empty():
+            n_id, proposal, value = node.accepted_proposals.get()
+            if proposal not in node.result_log:
+                node.result_log[proposal] = {"values": [value]}
+            else:
+                node.result_log[proposal]["values"].append(value)
+            node.process_leaning(proposal)
 
 def start_node(n_id):
     node = Node(n_id)
@@ -103,19 +143,23 @@ def start_node(n_id):
         if not node.leader_id:
             print(f"Node {node.id}: Initiating leader election...")
             node.start_election()
+            # time.sleep(10)
         while True:
+            # print(f"{node.role.name} {time.time()}" )
             node.manual_check_inactive_nodes()
-            if node.is_election or not  node.leader_id:
+            if  not node.leader_id and not node.isLeader:
+                print(f"is election {node.is_election}")
+                print(f"Leader id {node.leader_id}")
+                print(f"Node {node.id}: Initiating leader election... inside while")
                 node.start_election()
-            node.manual_check_inactive_nodes()
             if node.isLeader:
-                leader(node) #infinite loop
+                leader(node)
             if node.role  == Roles.PROPOSER:
-                proposer(node) #infinite loop
+                proposer(node)
             if node.role == Roles.ACCEPTOR:
-                acceptor(node) #infinite loop
+                acceptor(node)
             if node.role == Roles.LEANER:
-                learner(node) #infinite loop
+                learner(node)
 
 
     except KeyboardInterrupt:

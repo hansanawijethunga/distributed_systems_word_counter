@@ -72,7 +72,7 @@ class PDFReader:
 
 if __name__ == "__main__":
 # Example usage:
-    pdf_path = 'Material/Document.pdf'
+    pdf_path = 'Material/Document1.pdf'
 
     # Create a PDFReader object
     pdf_reader = PDFReader(pdf_path)

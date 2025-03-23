@@ -8,7 +8,9 @@ class LeaderElectionService(node_pb2_grpc.LeaderElectionServicer):
         self.node = node
 
     def Challenge(self, request, context):
-        self.node.is_election = True
+        # print("Setting is election to true")
+        # self.node.start_election()
+        self.node.is_should_start_election = True
         return node_pb2.ChallengeResponse(acknowledged=True)
 
     def UpdateRole(self, request, context):
@@ -18,7 +20,9 @@ class LeaderElectionService(node_pb2_grpc.LeaderElectionServicer):
         if role == Roles.ACCEPTOR.name:
             self.node.role = Roles.ACCEPTOR
         if role == Roles.LEANER.name:
+            self.node.startRedis()
             self.node.role = Roles.LEANER
+        print(f"Node {self.node.id}Start Working as a {self.node.role.name}")
         return node_pb2.UpdateRoleResponse(success=True)
 
     def QueueJob(self,request,context):
@@ -33,6 +37,21 @@ class LeaderElectionService(node_pb2_grpc.LeaderElectionServicer):
         node_id = request.node_id
         self.node.proposal_promises.append(node_id)
         return node_pb2.AcknowledgementResponse(success=True)
+
+
+    def InformFinalResult(self,request,context):
+        proposal_number = request.proposal_number
+        self.node.update_line_status(proposal_number)
+        return node_pb2.AcknowledgementResponse(success=True)
+
+    def InformLeanerRequest(self,request,context):
+        node_id = request.node_id
+        proposal_number = request.proposal_number
+        value = request.value
+        self.node.push_leander_queue(node_id,proposal_number,value)
+        return node_pb2.AcknowledgementResponse(success=True)
+
+
 
 
 

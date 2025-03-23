@@ -120,12 +120,8 @@ def get_most_common_value(values):
 
 
 def get_most_voted_number(nums,total_voter_count):
-    print("Totla Voter Count")
-    print(total_voter_count)
-    if len(nums) > total_voter_count:
-        raise ValueError("Array length cannot exceed total_voter_count")
-
-        # Boyer-Moore Voting Algorithm to find a candidate
+    if total_voter_count < 2:
+       return None
     candidate, count = None, 0
     for num in nums:
         if count == 0:
@@ -140,9 +136,19 @@ def get_most_voted_number(nums,total_voter_count):
         return candidate
     return None  # No majority element
 
+import string
+
+def generate_alphabet_keys(prefix):
+    return {f"{prefix}{letter}": False for letter in string.ascii_uppercase}
+
+
+def all_values_true(dictionary):
+    return all(dictionary.values())
+
 
 
 if __name__ == "__main__":
-    nums1 = [4,3,3,3,3]
-    total_voter_count1 = 8
-    print(get_most_voted_number(nums1, total_voter_count1))  # Output: 3
+    # nums1 = [4,3,3,3,3]
+    # total_voter_count1 = 8
+    # print(get_most_voted_number(nums1, total_voter_count1))  # Output: 3
+    print(generate_alphabet_keys("10000000"))
