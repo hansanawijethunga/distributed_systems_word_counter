@@ -50,6 +50,7 @@ message JobRequest {
   int32 line = 2;        // Line number for the job
   string range = 3;      // Range of the job
   string text = 4;       // Text associated with the job
+  string sequence = 5;
 }
 
 // Acknowledgement response for job queue action
@@ -65,6 +66,7 @@ message PromiseRequest {
 
 message ResultRequest {
 string proposal_number = 1;
+bool status = 2;
 }
 
 message LeanerRequest {

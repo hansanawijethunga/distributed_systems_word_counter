@@ -50,5 +50,9 @@ class RedisClient:
 # Example Usage
 if __name__ == "__main__":
     redis_client = RedisClient()
+    abc = redis_client.get_value("last_success_proposal")
+    print(abc)
+    if abc is None or "":
+        print("no Value")
     # redis_client.clear_all_dbs()
-    print(redis_client.get_all_keys_and_values())  # Output: None
+    # print(redis_client.get_all_keys_and_values())  # Output: None

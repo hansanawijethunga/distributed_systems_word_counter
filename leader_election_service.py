@@ -20,7 +20,7 @@ class LeaderElectionService(node_pb2_grpc.LeaderElectionServicer):
         if role == Roles.ACCEPTOR.name:
             self.node.role = Roles.ACCEPTOR
         if role == Roles.LEANER.name:
-            self.node.startRedis()
+            self.node.start_redis()
             self.node.role = Roles.LEANER
         print(f"Node {self.node.id}Start Working as a {self.node.role.name}")
         return node_pb2.UpdateRoleResponse(success=True)
@@ -30,7 +30,8 @@ class LeaderElectionService(node_pb2_grpc.LeaderElectionServicer):
         line = request.line
         letter_range = request.range
         text = request.text
-        self.node.jobs.put({"page":page,"line":line,"letter_range":letter_range,"text":text})
+        sequence = request.sequence
+        self.node.jobs.put({"page":page,"line":line,"letter_range":letter_range,"text":text,"sequence":sequence})
         return node_pb2.AcknowledgementResponse(success=True)
 
     def PromiseProposal(self,request,context):
@@ -41,7 +42,8 @@ class LeaderElectionService(node_pb2_grpc.LeaderElectionServicer):
 
     def InformFinalResult(self,request,context):
         proposal_number = request.proposal_number
-        self.node.update_line_status(proposal_number)
+        status = request.status
+        self.node.update_line_status(status)
         return node_pb2.AcknowledgementResponse(success=True)
 
     def InformLeanerRequest(self,request,context):

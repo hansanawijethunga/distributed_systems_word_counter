@@ -18,6 +18,7 @@ GRPC_PORT_OFFSET = 60000
 
 
 
+
 class Node:
     def __init__(self, id):
         self.id = id
@@ -36,12 +37,12 @@ class Node:
         self.result_log = {}
         self.is_election = False
         self.is_should_start_election = False
-        self.line_ready = False
+        self.go_no_go_new_line = helpers.Stage.PENDING
         self.line_status = {}
         self.redis_client = None
 
-
-    def startRedis(self):
+    def start_redis(self):
+        print("Starting Redis")
         self.redis_client = RedisClient()
 
     def receive_messages(self):
@@ -92,7 +93,7 @@ class Node:
         if not self.is_election:
             self.is_election = True
             time.sleep(5) #waiting for nodes
-            self.manual_check_inactive_nodes()
+            self.update_node_status()
             print("Leader Election Started")
             acknowledged = self.challenge_higher_nodes()
             if not acknowledged and not self.isLeader:
@@ -208,7 +209,7 @@ class Node:
             sock.close()
             time.sleep(1)
 
-    def check_unassigned_roles_roles(self):
+    def assign_roles(self):
         # print(self.nodes)
         for n_id,node in self.nodes.items() :
             if node["role"] == Roles.UNASSIGNED.name :
@@ -235,7 +236,7 @@ class Node:
                         print(f"Node {self.id}: Removed Leader")
 
 
-    def manual_check_inactive_nodes(self,timeout = 3):
+    def update_node_status(self, timeout = 3):
         time.sleep(timeout/2)
         current_time = time.time()
         inactive_nodes = [n_id for n_id, data in self.nodes.items() if current_time - data['time'] > timeout]
@@ -260,13 +261,12 @@ class Node:
                 nodes[Roles.LEANER.name] += 1
         return  nodes
 
-    def queue_job(self,n_id,letter_range,page,line,text):
+    def queue_job(self,n_id,letter_range,page,line,text,sequence):
         try:
-            # print(f"Leader  queuing jobs to {n_id} through port {GRPC_PORT_OFFSET + n_id}")
-            new_text = text.replace("-", "")
+            new_text = text.replace("-", "") #remove the - in the text
             channel = grpc.insecure_channel(f"localhost:{GRPC_PORT_OFFSET + n_id}")
             stub = node_pb2_grpc.LeaderElectionStub(channel)
-            job_request = node_pb2.JobRequest(range=letter_range,text=new_text,page=page,line=line)
+            job_request = node_pb2.JobRequest(range=letter_range,text=new_text,page=page,line=line,sequence=str(sequence))
             response = stub.QueueJob(job_request)
             # print(response)
             if response.success:
@@ -294,6 +294,7 @@ class Node:
                     channel = grpc.insecure_channel(f"localhost:{GRPC_PORT_OFFSET + learner_id}")
                     stub = node_pb2_grpc.LeaderElectionStub(channel)
                     leaner_request = node_pb2.LeanerRequest(proposal_number=proposal , value=self.proposal_log[proposal]["accepted"],node_id=self.id)
+                    print(f"{self.role.name}: send result to leaner {proposal} value {new_value}")
                     response = stub.InformLeanerRequest(leaner_request)
                     # print(response)
                     if response.success:
@@ -302,9 +303,10 @@ class Node:
                     print(f"{self.role.name} Leaner Not Found")
                     return False
             except Exception as e:
-                print(f"Node {self.id}: Failed to communicate with {learner_id} ({e})")
+                print(f"Node {self.role.name}: Failed to communicate with Leaner ({e})")
                 return False
         else:
+            print(f"{self.role.name} same value no need to update leaner{new_value}")
             return True
 
 
@@ -312,33 +314,28 @@ class Node:
         self.accepted_proposals.put((node_id, proposal_no, value))
 
 
-    def process_leaning(self,proposal):
-        values  =self.result_log[proposal]["values"]
-        if values:
-            # self.manual_check_inactive_nodes()
-            acceptor_count = len(self.get_nodes_by_role(Roles.ACCEPTOR))
-            voted_num = helpers.get_most_voted_number(values,acceptor_count)
-            redis_client = RedisClient()
-            if voted_num is not None:
-                print(f"Setting the final value for {proposal} value {voted_num}")
-                redis_client.set_value(proposal,voted_num)
-                redis_client.set_value('last_success_proposal',proposal)
-                self.inform_leader(proposal)
-            else:
-                redis_client.set_value(proposal, -1)
-                print(f"{self.role.name} majority votes not found {proposal} value {voted_num} aceptor node count {acceptor_count}")
+    def process_leaning(self,result):
+        if helpers.has_negative_one(result):
+            print(f"{self.role.name} majority votes not found")
+            self.inform_leader(False)
+        else:
+            # self.redis_client.set_value('last_success_proposal', proposal)
+            line_numbers = ""
+            for proposal ,value in result.items():
+                line_numbers = proposal[10:-1]
+                print(f"Setting the final value for {proposal[10:]} value {value}")
+                self.redis_client.set_value(proposal[10:],value)
+            self.inform_leader(True)
+            self.redis_client.set_value("last_success_proposal",line_numbers)
 
-
-
-
-    def inform_leader(self,proposal):
+    def inform_leader(self,status):
         print("Informing Leader")
         if not self.leader_id:
             return
         try:
             channel = grpc.insecure_channel(f"localhost:{GRPC_PORT_OFFSET + self.leader_id[0]}")
             stub = node_pb2_grpc.LeaderElectionStub(channel)
-            result_request = node_pb2.ResultRequest(proposal_number = proposal)
+            result_request = node_pb2.ResultRequest(proposal_number = "ABC",status=status)
             response = stub.InformFinalResult(result_request)
             # print(response)
             if response.success:
@@ -348,21 +345,20 @@ class Node:
             return False
 
     def initiate_new_line(self, page_no, line_no):
-        self.line_ready = False
+        self.go_no_go_new_line = helpers.Stage.PENDING
         proposal_number = f"{str(page_no).zfill(4)}{str(line_no).zfill(3)}"
         self.line_status = helpers.generate_alphabet_keys(proposal_number)
 
 
 
-    def update_line_status(self,proposal_number):
-        if proposal_number in self.line_status:
-            print(f"Updating proposal Status {proposal_number}")
-            self.line_status[proposal_number] = True
-            val = helpers.all_values_true(self.line_status)
-            print(f"val {val}")
-            self.line_ready = val
+    def update_line_status(self,status):
+        if status:
+            print(f"{self.role.name} Validation Success")
+            self.go_no_go_new_line = helpers.Stage.GO
         else:
-            print(f"{self.role.name} Proposal Number not found")
+            print(f"{self.role.name} Validation Fail")
+            self.go_no_go_new_line = helpers.Stage.NoGO
+
 
 
     def start_grpc_server(self):
@@ -374,6 +370,12 @@ class Node:
         print(f"Node {self.id}: gRPC server started on port {self.grpc_port}")
         server.wait_for_termination()
 
+
+    def check_minium_requirement(self):
+        proposer_count = len(self.get_nodes_by_role(Roles.PROPOSER))
+        acceptor_count = len(self.get_nodes_by_role(Roles.ACCEPTOR))
+        learner_count = len(self.get_nodes_by_role(Roles.LEANER))
+        return  proposer_count >=1  and  learner_count == 1 and acceptor_count >1
 
 
 

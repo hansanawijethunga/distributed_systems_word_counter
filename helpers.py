@@ -13,6 +13,13 @@ class Roles(Enum):
     UNASSIGNED = 4
 
 
+class Stage(Enum):
+    PENDING = 0
+    GO = 1
+    NoGO = 2
+
+
+
 def create_socket(is_receiver=False):
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -144,6 +151,25 @@ def generate_alphabet_keys(prefix):
 
 def all_values_true(dictionary):
     return all(dictionary.values())
+
+
+def filter_exceeding_threshold(data: dict, threshold: int):
+    result = {}
+
+    for key, value_dict in data.items():
+        values = value_dict["values"]
+        count_dict = Counter(values)  # Count occurrences of each number
+        exceeding_numbers = [num for num, count in count_dict.items() if count > threshold]
+
+        result[key] = exceeding_numbers[0] if exceeding_numbers else -1
+
+    return result
+
+def has_negative_one(data: dict) -> bool:
+    """
+    Returns True if any value in the dictionary is -1, otherwise False.
+    """
+    return -1 in data.values()
 
 
 
