@@ -65,12 +65,12 @@ message PromiseRequest {
 }
 
 message ResultRequest {
-string proposal_number = 1;
-bool status = 2;
+    string proposal_number = 1;
+    bool status = 2;
 }
 
 message LeanerRequest {
-string proposal_number = 1;
-int32 value = 2;
-int32 node_id = 3;
+    string proposal_number = 1;
+    string value = 2;
+    int32 node_id = 3;
 }

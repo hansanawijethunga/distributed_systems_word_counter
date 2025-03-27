@@ -115,10 +115,9 @@ def proposer(node):
 
 def acceptor(node):
     if not node.proposals.empty():
-        message = node.proposals.get()
-        try:
             # Extract parts
-            n_id, proposal, value_json = message.split("-", 2)  # Allow for dictionary as last part
+            n_id, proposal, value_json = node.proposals.get()  # Allow for dictionary as last part
+            print(value_json)
             value = json.loads(value_json)  # Convert JSON back to dictionary
 
             print(f"Validating Proposal {proposal} with values {value}")
@@ -131,16 +130,12 @@ def acceptor(node):
                 node.proposal_log[proposal]["values"].append(value)
 
             node.validate_proposal(proposal)
-
-        except Exception as e:
-            print(f"Error processing proposal: {e}")
     else:
         print("Acceptor Waiting for proposals")
 
 def learner(node):
     if not node.accepted_proposals.empty():
         node.result_log = {}
-
         while True:
             try:
                 n_id, proposal, value = node.accepted_proposals.get(timeout=5)
@@ -167,10 +162,10 @@ def learner(node):
             len(node.get_nodes_by_role(Roles.ACCEPTOR)) // 2
         )
 
-        node.process_learning(result)
-        node.result_log = {}
+        node.process_learning(result)  # Call process_learning with the final result
+        node.result_log = {}  # Reset log after processing
     else:
-        print(f"{node.role.name} Waiting for proposals"
+        print(f"{node.role.name} Waiting for proposals")
 
 def start_node(n_id):
     node = Node(n_id)

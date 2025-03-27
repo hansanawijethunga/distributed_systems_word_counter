@@ -55,4 +55,4 @@ if __name__ == "__main__":
     if abc is None or "":
         print("no Value")
     # redis_client.clear_all_dbs()
-    # print(redis_client.get_all_keys_and_values())  # Output: None
+    print(redis_client.get_all_keys_and_values())  # Output: None

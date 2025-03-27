@@ -168,7 +168,6 @@ def all_values_true(dictionary):
 
 def filter_exceeding_threshold(data: dict, threshold: int):
     result = {}
-
     for proposal, value_dict in data.items():
         values = value_dict["values"]
 
@@ -177,12 +176,10 @@ def filter_exceeding_threshold(data: dict, threshold: int):
         for value in values:
             for letter, count in value.items():
                 combined_counts[letter] += count
-
         # Filter letters exceeding the threshold
         filtered_counts = {letter: count for letter, count in combined_counts.items() if count > threshold}
 
         result[proposal] = json.dumps(filtered_counts) if filtered_counts else "{}"  # Return JSON or empty dict
-
     return result
 
 def has_negative_one(data: dict) -> bool:

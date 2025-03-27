@@ -8,6 +8,7 @@ import helpers
 from helpers import Roles
 from leader_election_service import LeaderElectionService
 import queue
+import json
 
 from redis_client import RedisClient
 
@@ -275,24 +276,28 @@ class Node:
             print(f"Node {self.id}: Failed to communicate with {n_id} ({e})")
             return False
 
-    def send_proposal(self,proposal_number,value):
-        prepare_message = f"{self.id}-Prepare-{proposal_number}-{value}".encode()
+    def send_proposal(self, proposal_number, value_dict):
+        value_json = json.dumps(value_dict)  # Convert dict to a JSON string
+
+        prepare_message = f"{self.id}-Prepare-{proposal_number}-{value_json}".encode()
         sock = helpers.create_socket(is_receiver=False)
         sock.sendto(prepare_message, (MULTICAST_GROUP, self.port))
         sock.close()
+
+        print(f"Sent proposal: {prepare_message.decode()}")  # Debug output
 
 
 
     def validate_proposal(self,proposal):
         values = self.proposal_log[proposal]["values"]
-
+        # print(f"The data type of 'value' is: {type(values)}")
         new_value = helpers.get_most_present_value(values)  # Use the external function for validation
 
         if self.proposal_log[proposal]["accepted"] is None or new_value != self.proposal_log[proposal]["accepted"]:
             self.proposal_log[proposal]["accepted"] = new_value
-
+            print(f"The data type of 'value' is: {type( self.proposal_log[proposal]['accepted'])}")
             try:
-                learner_id = next(iter(self.get_nodes_by_role(Roles.LEARNER)), None)
+                learner_id = next(iter(self.get_nodes_by_role(Roles.LEANER)), None)
                 if learner_id:
                     channel = grpc.insecure_channel(f"localhost:{GRPC_PORT_OFFSET + learner_id}")
                     stub = node_pb2_grpc.LeaderElectionStub(channel)
@@ -301,7 +306,6 @@ class Node:
                         value=self.proposal_log[proposal]["accepted"],
                         node_id=self.id
                     )
-                    print(f"{self.role.name}: Sending result to learner {proposal} with value {new_value}")
 
                     response = stub.InformLeanerRequest(learner_request)
 
@@ -321,20 +325,19 @@ class Node:
     def push_leander_queue(self,node_id,proposal_no,value):
         self.accepted_proposals.put((node_id, proposal_no, value))
 
-
-    def process_leaning(self,result):
+    def process_learning(self, result):
         if helpers.has_negative_one(result):
-            print(f"{self.role.name} majority votes not found")
+            print(f"{self.role.name} Majority votes not found")
             self.inform_leader(False)
         else:
-            # self.redis_client.set_value('last_success_proposal', proposal)
             line_numbers = ""
-            for proposal ,value in result.items():
-                line_numbers = proposal[10:-1]
+            for proposal, value in result.items():
+                line_numbers = proposal[10:-1]  # Extracting line numbers from proposal
                 print(f"Setting the final value for {proposal[10:]} value {value}")
-                self.redis_client.set_value(proposal[10:],value)
+                self.redis_client.set_value(proposal[10:], value)  # Store in Redis
+
             self.inform_leader(True)
-            self.redis_client.set_value("last_success_proposal",line_numbers)
+            self.redis_client.set_value("last_success_proposal", line_numbers)  # Store last success
 
     def inform_leader(self,status):
         print("Informing Leader")
