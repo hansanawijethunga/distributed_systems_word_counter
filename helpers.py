@@ -2,6 +2,7 @@ from enum import Enum
 import socket
 import string
 from collections import Counter
+import json
 
 
 TTL = 2
@@ -108,12 +109,12 @@ def count_words_by_letter(letter_range, text):
     letter_counts = {chr(letter): 0 for letter in range(ord(start_letter), ord(end_letter) + 1)}
 
     words = text.split()
-
     for word in words:
         first_letter = word[0].upper()
         if start_letter <= first_letter <= end_letter:
             letter_counts[first_letter] += 1
-    return letter_counts  # Now returning a dictionary
+
+    return {k: v for k, v in letter_counts.items() if v > 0}
 
 def get_most_common_value(values):
     counter = Counter(values)
@@ -124,6 +125,18 @@ def get_most_common_value(values):
     top_values = [val for val, count in most_common if count == max_count]
     accepted_value = top_values[0] if len(top_values) == 1 else None
     return accepted_value
+
+
+def get_most_present_value(values):
+    """Aggregate letter counts from multiple proposals and return the final combined dictionary as JSON."""
+    combined_counts = Counter()
+
+    for value in values:
+        for letter, count in value.items():
+            combined_counts[letter] += count
+
+    return json.dumps(dict(combined_counts))  # Convert Counter back to JSON
+
 
 
 def get_most_voted_number(nums,total_voter_count):
@@ -156,12 +169,19 @@ def all_values_true(dictionary):
 def filter_exceeding_threshold(data: dict, threshold: int):
     result = {}
 
-    for key, value_dict in data.items():
+    for proposal, value_dict in data.items():
         values = value_dict["values"]
-        count_dict = Counter(values)  # Count occurrences of each number
-        exceeding_numbers = [num for num, count in count_dict.items() if count > threshold]
 
-        result[key] = exceeding_numbers[0] if exceeding_numbers else -1
+        # Aggregate letter counts
+        combined_counts = Counter()
+        for value in values:
+            for letter, count in value.items():
+                combined_counts[letter] += count
+
+        # Filter letters exceeding the threshold
+        filtered_counts = {letter: count for letter, count in combined_counts.items() if count > threshold}
+
+        result[proposal] = json.dumps(filtered_counts) if filtered_counts else "{}"  # Return JSON or empty dict
 
     return result
 

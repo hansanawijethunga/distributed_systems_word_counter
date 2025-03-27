@@ -9,6 +9,7 @@ import helpers
 from helpers import Roles
 from node import Node
 from pdf_reader import PDFReader
+import json
 
 PDF_PATH = 'Material/Document.pdf'
 
@@ -96,54 +97,80 @@ def leader(node):
     time.sleep(1000)
 
 def proposer(node):
-        if not node.jobs.empty():
-            job = node.jobs.get()
-            print("Job Started")
-            letters = helpers.count_words_by_letter(job['letter_range'], job['text'])
-            node.update_node_status()
-            for letter, count in letters.items():
-                proposal_number = f"{job['sequence']}{str(job['page']).zfill(4)}{str(job['line']).zfill(3)}{letter}"
-                print(f"Sending the proposal number {proposal_number} for the text {job['text']} calculated value {count}")
-                node.send_proposal(proposal_number, count)
-        else:
+        if node.jobs.empty():
             print(f"{node.role.name} : Waiting for tasks")
+            return
+
+        job = node.jobs.get()
+        print("Job Started")
+
+        letter_counts = helpers.count_words_by_letter(job['letter_range'], job['text'])
+        node.update_node_status()
+
+        proposal_number = f"{job['sequence']}{str(job['page']).zfill(4)}{str(job['line']).zfill(3)}"
+        print(f"Sending proposal {proposal_number} with counts {letter_counts} for text: {job['text']}")
+
+        node.send_proposal(proposal_number, letter_counts)
+
 
 def acceptor(node):
-        if not node.proposals.empty():
-            n_id, proposal , value = node.proposals.get()
-            print(f"Validating the Proposal {proposal} value {value}")
+    if not node.proposals.empty():
+        message = node.proposals.get()
+        try:
+            # Extract parts
+            n_id, proposal, value_json = message.split("-", 2)  # Allow for dictionary as last part
+            value = json.loads(value_json)  # Convert JSON back to dictionary
+
+            print(f"Validating Proposal {proposal} with values {value}")
+
             if proposal not in node.proposal_log:
                 print("New Proposal")
                 node.proposal_log[proposal] = {"values": [value], "accepted": None}
             else:
                 print("Existing Proposal")
                 node.proposal_log[proposal]["values"].append(value)
+
             node.validate_proposal(proposal)
-        else:
-            print("Acceptor Waiting for proposals")
+
+        except Exception as e:
+            print(f"Error processing proposal: {e}")
+    else:
+        print("Acceptor Waiting for proposals")
 
 def learner(node):
-        if not node.accepted_proposals.empty():
-            node.result_log = {}
-            while True:
-                try:
-                    n_id, proposal, value = node.accepted_proposals.get(timeout=5)
-                    print(f"{node.role.name} Received proposal: {n_id}, {proposal}, {value}")
-                    if proposal not in node.result_log:
-                        node.result_log[proposal] = {"values": [value]}
-                    else:
-                        node.result_log[proposal]["values"].append(value)
-                except queue.Empty:
-                    print(f"{node.role.name} No proposals received within 5 seconds.")
-                    break
+    if not node.accepted_proposals.empty():
+        node.result_log = {}
 
-            print(f"{node.role.name} Logged Proposals.")
-            print(node.result_log)
-            result = helpers.filter_exceeding_threshold(node.result_log,len(node.get_nodes_by_role(Roles.ACCEPTOR))//2)
-            node.process_leaning(result)
-            node.result_log = {}
-        else:
-            print(f"{node.role.name} Waiting for proposals")
+        while True:
+            try:
+                n_id, proposal, value = node.accepted_proposals.get(timeout=5)
+                print(f"{node.role.name} Received proposal: {n_id}, {proposal}, {value}")
+
+                # Parse JSON value into a dictionary
+                parsed_value = json.loads(value)
+
+                if proposal not in node.result_log:
+                    node.result_log[proposal] = {"values": [parsed_value]}
+                else:
+                    node.result_log[proposal]["values"].append(parsed_value)
+
+            except queue.Empty:
+                print(f"{node.role.name} No proposals received within 5 seconds.")
+                break
+
+        print(f"{node.role.name} Logged Proposals.")
+        print(json.dumps(node.result_log, indent=2))  # Pretty-print the log
+
+        # Process results based on threshold
+        result = helpers.filter_exceeding_threshold(
+            node.result_log,
+            len(node.get_nodes_by_role(Roles.ACCEPTOR)) // 2
+        )
+
+        node.process_learning(result)
+        node.result_log = {}
+    else:
+        print(f"{node.role.name} Waiting for proposals"
 
 def start_node(n_id):
     node = Node(n_id)

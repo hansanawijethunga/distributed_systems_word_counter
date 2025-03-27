@@ -284,29 +284,37 @@ class Node:
 
 
     def validate_proposal(self,proposal):
-        values  =self.proposal_log[proposal]["values"]
-        new_value = int(helpers.get_most_common_value(values))
-        if self.proposal_log[proposal]["accepted"] is  None or new_value != self.proposal_log[proposal]["accepted"]:
+        values = self.proposal_log[proposal]["values"]
+
+        new_value = helpers.get_most_present_value(values)  # Use the external function for validation
+
+        if self.proposal_log[proposal]["accepted"] is None or new_value != self.proposal_log[proposal]["accepted"]:
             self.proposal_log[proposal]["accepted"] = new_value
+
             try:
-                learner_id =  next(iter( self.get_nodes_by_role(Roles.LEANER)))
+                learner_id = next(iter(self.get_nodes_by_role(Roles.LEARNER)), None)
                 if learner_id:
                     channel = grpc.insecure_channel(f"localhost:{GRPC_PORT_OFFSET + learner_id}")
                     stub = node_pb2_grpc.LeaderElectionStub(channel)
-                    leaner_request = node_pb2.LeanerRequest(proposal_number=proposal , value=self.proposal_log[proposal]["accepted"],node_id=self.id)
-                    print(f"{self.role.name}: send result to leaner {proposal} value {new_value}")
-                    response = stub.InformLeanerRequest(leaner_request)
-                    # print(response)
+                    learner_request = node_pb2.LeanerRequest(
+                        proposal_number=proposal,
+                        value=self.proposal_log[proposal]["accepted"],
+                        node_id=self.id
+                    )
+                    print(f"{self.role.name}: Sending result to learner {proposal} with value {new_value}")
+
+                    response = stub.InformLeanerRequest(learner_request)
+
                     if response.success:
                         return response.success
                 else:
-                    print(f"{self.role.name} Leaner Not Found")
+                    print(f"{self.role.name} Learner Not Found")
                     return False
             except Exception as e:
-                print(f"Node {self.role.name}: Failed to communicate with Leaner ({e})")
+                print(f"Node {self.role.name}: Failed to communicate with Learner ({e})")
                 return False
         else:
-            print(f"{self.role.name} same value no need to update leaner{new_value}")
+            print(f"{self.role.name}: Same value, no need to update Learner {new_value}")
             return True
 
 
