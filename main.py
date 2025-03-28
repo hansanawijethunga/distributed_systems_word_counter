@@ -135,7 +135,7 @@ def acceptor(node):
         print(letters)
         decision = not helpers.has_negative_one(letters)  #True if list do not have negative -1
         print(decision)
-        node.send_acceptor_decision(line,decision)
+        node.send_acceptor_decision(line, decision, json.dumps(letters) if decision else "{}")
     else:
         pass
         #print("Acceptor Waiting for proposals")
