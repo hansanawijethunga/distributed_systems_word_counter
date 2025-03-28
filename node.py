@@ -95,7 +95,7 @@ class Node:
             self.is_election = True
             time.sleep(5) #waiting for nodes
             self.update_node_status()
-            #print("Leader Election Started")
+            print("Leader Election Started")
             acknowledged = self.challenge_higher_nodes()
             if not acknowledged and not self.isLeader:
                 self.announce_leadership()
@@ -317,24 +317,38 @@ class Node:
             print(f"{self.role.name}: Same value, no need to update Learner {new_value}")
             return True
 
+    def send_acceptor_decision(self,proposal,decision):
+        try:
+            learner_id = next(iter(self.get_nodes_by_role(Roles.LEANER)), None)
+            if learner_id:
+                channel = grpc.insecure_channel(f"localhost:{GRPC_PORT_OFFSET + learner_id}")
+                stub = node_pb2_grpc.LeaderElectionStub(channel)
+                learner_request = node_pb2.LeanerRequest(
+                    proposal_number=proposal,
+                    value=decision,
+                    node_id=self.id
+                )
+                print(f"{self.role.name} : inform the decision to leaner {proposal} : {decision}")
+                response = stub.InformLeanerRequest(learner_request)
+
+                if response.success:
+                    return response.success
+            else:
+                print(f"{self.role.name} Learner Not Found")
+        except Exception as e:
+            print(f"Node {self.role.name}: Failed to communicate with Learner ({e})")
+
+
+
 
     def push_leander_queue(self,node_id,proposal_no,value):
         self.accepted_proposals.put((node_id, proposal_no, value))
 
-    def process_learning(self, result):
-        if not result:
-            ##print(f"{self.role.name} Majority votes not found")
-            self.inform_leader(False)
-        else:
-            line_numbers = ""
-            for proposal, value in result.items():
-                line_numbers = proposal[10:-2]  # Extracting line numbers from proposal
-                print(line_numbers)
-                ##print(f"Setting the final value for {proposal[10:]} value {value}")
-                # self.redis_client.set_value(proposal[10:], value)  # Store in Redis
+    def process_learning(self,proposal ,status):
+        self.inform_leader(status)
+        if status:
+            self.redis_client.set_value("last_success_proposal", proposal)
 
-            self.inform_leader(True)
-            self.redis_client.set_value("last_success_proposal", line_numbers)  # Store last success
 
     def inform_leader(self,status):
         ##print("Informing Leader")

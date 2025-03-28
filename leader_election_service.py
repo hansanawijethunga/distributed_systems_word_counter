@@ -51,7 +51,8 @@ class LeaderElectionService(node_pb2_grpc.LeaderElectionServicer):
         node_id = request.node_id
         proposal_number = request.proposal_number
         value = request.value
-        self.node.push_leander_queue(node_id,proposal_number,value)
+        data = request.data
+        self.node.push_leander_queue(node_id,proposal_number,value,data)
         return node_pb2.AcknowledgementResponse(success=True)
 
 

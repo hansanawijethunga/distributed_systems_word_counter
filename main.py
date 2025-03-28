@@ -115,56 +115,59 @@ def proposer(node):
 
 def acceptor(node):
     if not node.proposals.empty():
-            # Extract parts
-            n_id, proposal, value_json = node.proposals.get()  # Allow for dictionary as last part
-            #print(value_json)
-            value = json.loads(value_json)  # Convert JSON back to dictionary
-
-            #print(f"Validating Proposal {proposal} with values {value}")
-
-            if proposal not in node.proposal_log:
-                #print("New Proposal")
-                node.proposal_log[proposal] = {"values": [value], "accepted": None}
-            else:
-                #print("Existing Proposal")
-                node.proposal_log[proposal]["values"].append(value)
-
-            node.validate_proposal(proposal)
+        letters = {
+            'A': -1, 'B': -1, 'C': -1, 'D': -1, 'E': -1, 'F': -1, 'G': -1, 'H': -1, 'I': -1, 'J': -1,
+            'K': -1, 'L': -1, 'M': -1, 'N': -1, 'O': -1, 'P': -1, 'Q': -1, 'R': -1, 'S': -1, 'T': -1,
+            'U': -1, 'V': -1, 'W': -1, 'X': -1, 'Y': -1, 'Z': -1
+        }
+        line = ""
+        while True:
+            try:
+                # Extract parts
+                n_id, proposal, value_json = node.proposals.get(timeout=1)  # Allow for dictionary as last part
+                line = proposal[10:-2]
+                value = json.loads(value_json)
+                for letter, count in value.items():
+                    letters[letter] = count
+            except queue.Empty:
+                ##print(f"{node.role.name} No proposals received within 5 seconds.")
+                break
+        print(letters)
+        decision = not helpers.has_negative_one(letters)  #True if list do not have negative -1
+        print(decision)
+        node.send_acceptor_decision(line,decision)
     else:
         pass
         #print("Acceptor Waiting for proposals")
 
 def learner(node):
     if not node.accepted_proposals.empty():
-        node.result_log = {}
+        print("Starting......")
+        true_count = 0
+        majority_acceptor_count = len(node.get_nodes_by_role(Roles.ACCEPTOR)) // 2
+        print(f"Majority count { majority_acceptor_count}" )
+        status = False
+        proposal= ""
+        data = {}
         while True:
             try:
-                n_id, proposal, value = node.accepted_proposals.get(timeout=1)
-                ##print(f"{node.role.name} Received proposal: {n_id}, {proposal}, {value}")
-
-                # Parse JSON value into a dictionary
-                parsed_value = json.loads(value)
-
-                if proposal not in node.result_log:
-                    node.result_log[proposal] = {"values": [parsed_value]}
-                else:
-                    node.result_log[proposal]["values"].append(parsed_value)
-
+                n_id, p, value,d = node.accepted_proposals.get(timeout=2)
+                proposal =p
+                print(f"{n_id} proposal {proposal} {value} ")
+                if value:
+                    true_count += 1
+                print(f"True Count {true_count}")
+                if true_count > majority_acceptor_count:
+                    status = True
+                    data =json.loads(d)
+                    break
             except queue.Empty:
                 ##print(f"{node.role.name} No proposals received within 5 seconds.")
                 break
+        print(f"Final Decision is {status}")
+        node.accepted_proposals = queue.Queue()
+        node.process_learning(proposal,status)
 
-        ##print(f"{node.role.name} Logged Proposals.")
-        ##print(json.dumps(node.result_log, indent=2))  # Pretty-print the log
-
-        # Process results based on threshold
-        result = helpers.filter_exceeding_threshold(
-            node.result_log,
-            len(node.get_nodes_by_role(Roles.ACCEPTOR)) // 2
-        )
-        ##print(f"{node.role.name} Accepted Result {result}")
-        node.process_learning(result)
-        node.result_log = {}
     else:
         pass
         ##print(f"{node.role.name} Waiting for proposals")
