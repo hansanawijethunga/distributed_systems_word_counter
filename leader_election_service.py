@@ -22,7 +22,7 @@ class LeaderElectionService(node_pb2_grpc.LeaderElectionServicer):
         if role == Roles.LEANER.name:
             self.node.start_redis()
             self.node.role = Roles.LEANER
-        print(f"Node {self.node.id}Start Working as a {self.node.role.name}")
+        print(f"Node {self.node.id}I am a/an {self.node.role.name}")
         return node_pb2.UpdateRoleResponse(success=True)
 
     def QueueJob(self,request,context):
@@ -47,7 +47,7 @@ class LeaderElectionService(node_pb2_grpc.LeaderElectionServicer):
         return node_pb2.AcknowledgementResponse(success=True)
 
     def InformLeanerRequest(self,request,context):
-        print(f"Request{request}")
+        #print(f"Request{request}")
         node_id = request.node_id
         proposal_number = request.proposal_number
         value = request.value

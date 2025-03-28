@@ -106,15 +106,17 @@ def assign_ranges(nodes: dict) -> dict:
 
 def count_words_by_letter(letter_range, text):
     start_letter, end_letter = letter_range.split('-')
-    letter_counts = {chr(letter): 0 for letter in range(ord(start_letter), ord(end_letter) + 1)}
+    start_letter, end_letter = start_letter.upper(), end_letter.upper()
 
+    letter_counts = {chr(letter): 0 for letter in range(ord(start_letter), ord(end_letter) + 1)}
     words = text.split()
+
     for word in words:
         first_letter = word[0].upper()
         if start_letter <= first_letter <= end_letter:
             letter_counts[first_letter] += 1
 
-    return {k: v for k, v in letter_counts.items() if v > 0}
+    return letter_counts
 
 def get_most_common_value(values):
     counter = Counter(values)
@@ -168,18 +170,15 @@ def all_values_true(dictionary):
 
 def filter_exceeding_threshold(data: dict, threshold: int):
     result = {}
+    # print(data)
     for proposal, value_dict in data.items():
         values = value_dict["values"]
-
-        # Aggregate letter counts
-        combined_counts = Counter()
-        for value in values:
-            for letter, count in value.items():
-                combined_counts[letter] += count
-        # Filter letters exceeding the threshold
-        filtered_counts = {letter: count for letter, count in combined_counts.items() if count > threshold}
-
-        result[proposal] = json.dumps(filtered_counts) if filtered_counts else "{}"  # Return JSON or empty dict
+        value,count =most_common_dict(values)
+        if count > threshold:
+            result[proposal] = value
+        else:
+            return False
+    # print(result)
     return result
 
 def has_negative_one(data: dict) -> bool:
@@ -190,8 +189,36 @@ def has_negative_one(data: dict) -> bool:
 
 
 
+
+def most_common_dict(dict_list):
+    """
+    Finds the most common dictionary in a list of dictionaries.
+
+    Args:
+        dict_list (list): A list of dictionaries.
+
+    Returns:
+        tuple: (most_common_dict, occurrence_count)
+    """
+    # Convert dictionaries to JSON strings (hashable format)
+    dict_strings = [json.dumps(d, sort_keys=True) for d in dict_list]
+
+    # Count occurrences
+    counter = Counter(dict_strings)
+
+    # Find the most common dictionary and its count
+    most_common_str, most_common_count = counter.most_common(1)[0]
+
+    # Convert back to dictionary
+    most_common_dict = json.loads(most_common_str)
+
+    return most_common_dict, most_common_count
+
+
+
 if __name__ == "__main__":
+    pass
     # nums1 = [4,3,3,3,3]
     # total_voter_count1 = 8
-    # print(get_most_voted_number(nums1, total_voter_count1))  # Output: 3
-    print(generate_alphabet_keys("10000000"))
+    # #print(get_most_voted_number(nums1, total_voter_count1))  # Output: 3
+    #print(generate_alphabet_keys("10000000"))

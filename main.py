@@ -31,20 +31,20 @@ def start_threads(node):
 def leader(node):
     pdf_reader = PDFReader(PDF_PATH)
     page_count = pdf_reader.get_page_count()
-    print("Document Ready")
+    #print("Document Ready")
     node.start_redis()
     last_success_page_line = node.redis_client.get_value("last_success_proposal")
     page_start = 0
     line_start =0
     continue_flag = False
     if last_success_page_line is not None and last_success_page_line != "":
-        print("Previous Procress Fond")
+        #print("Previous Procress Fond")
         continue_flag = True
         page_start = int(last_success_page_line[:4])
         line_start = int(last_success_page_line[4:7])
 
     for page_no in range(page_start, page_count):
-        # print(f"Reading page {i}")
+        # #print(f"Reading page {i}")
         text_list = pdf_reader.get_page_text_lines(page_no)
         if continue_flag:
             line_no = line_start
@@ -53,7 +53,7 @@ def leader(node):
             line_no = 0
         while line_no < len(text_list):  # loop will not increment if any one of the proposer nodes failed respond back
             if not node.isLeader:  # retuen to main loop if not a leader anymore
-                print("Not the leader anymore stopping all operations")
+                #print("Not the leader anymore stopping all operations")
                 return
             node.initiate_new_line(page_no,line_no)
             node.update_node_status()
@@ -98,17 +98,17 @@ def leader(node):
 
 def proposer(node):
         if node.jobs.empty():
-            print(f"{node.role.name} : Waiting for tasks")
+            #print(f"{node.role.name} : Waiting for tasks")
             return
 
         job = node.jobs.get()
-        print("Job Started")
+        #print("Job Started")
 
         letter_counts = helpers.count_words_by_letter(job['letter_range'], job['text'])
         node.update_node_status()
 
-        proposal_number = f"{job['sequence']}{str(job['page']).zfill(4)}{str(job['line']).zfill(3)}"
-        print(f"Sending proposal {proposal_number} with counts {letter_counts} for text: {job['text']}")
+        proposal_number = f"{job['sequence']}{str(job['page']).zfill(4)}{str(job['line']).zfill(3)}{job['letter_range'].replace('-','')}"
+        #print(f"Sending proposal {proposal_number} with counts {letter_counts} for text: {job['text']}")
 
         node.send_proposal(proposal_number, letter_counts)
 
@@ -117,29 +117,30 @@ def acceptor(node):
     if not node.proposals.empty():
             # Extract parts
             n_id, proposal, value_json = node.proposals.get()  # Allow for dictionary as last part
-            print(value_json)
+            #print(value_json)
             value = json.loads(value_json)  # Convert JSON back to dictionary
 
-            print(f"Validating Proposal {proposal} with values {value}")
+            #print(f"Validating Proposal {proposal} with values {value}")
 
             if proposal not in node.proposal_log:
-                print("New Proposal")
+                #print("New Proposal")
                 node.proposal_log[proposal] = {"values": [value], "accepted": None}
             else:
-                print("Existing Proposal")
+                #print("Existing Proposal")
                 node.proposal_log[proposal]["values"].append(value)
 
             node.validate_proposal(proposal)
     else:
-        print("Acceptor Waiting for proposals")
+        pass
+        #print("Acceptor Waiting for proposals")
 
 def learner(node):
     if not node.accepted_proposals.empty():
         node.result_log = {}
         while True:
             try:
-                n_id, proposal, value = node.accepted_proposals.get(timeout=5)
-                print(f"{node.role.name} Received proposal: {n_id}, {proposal}, {value}")
+                n_id, proposal, value = node.accepted_proposals.get(timeout=1)
+                ##print(f"{node.role.name} Received proposal: {n_id}, {proposal}, {value}")
 
                 # Parse JSON value into a dictionary
                 parsed_value = json.loads(value)
@@ -150,38 +151,39 @@ def learner(node):
                     node.result_log[proposal]["values"].append(parsed_value)
 
             except queue.Empty:
-                print(f"{node.role.name} No proposals received within 5 seconds.")
+                ##print(f"{node.role.name} No proposals received within 5 seconds.")
                 break
 
-        print(f"{node.role.name} Logged Proposals.")
-        print(json.dumps(node.result_log, indent=2))  # Pretty-print the log
+        ##print(f"{node.role.name} Logged Proposals.")
+        ##print(json.dumps(node.result_log, indent=2))  # Pretty-print the log
 
         # Process results based on threshold
         result = helpers.filter_exceeding_threshold(
             node.result_log,
             len(node.get_nodes_by_role(Roles.ACCEPTOR)) // 2
         )
-
-        node.process_learning(result)  # Call process_learning with the final result
-        node.result_log = {}  # Reset log after processing
+        ##print(f"{node.role.name} Accepted Result {result}")
+        node.process_learning(result)
+        node.result_log = {}
     else:
-        print(f"{node.role.name} Waiting for proposals")
+        pass
+        ##print(f"{node.role.name} Waiting for proposals")
 
 def start_node(n_id):
     node = Node(n_id)
     start_threads(node)
     try:
-        print(f"Listening for other nodes")
+        ##print(f"Listening for other nodes")
         time.sleep(5)
         if not node.leader_id:
-            print(f"Node {node.id}: Initiating leader election...")
+            ##print(f"Node {node.id}: Initiating leader election...")
             node.start_election()
             # time.sleep(10)
         while True:
-            # print(f"{node.role.name} {time.time()}" )
+            # ##print(f"{node.role.name} {time.time()}" )
             node.update_node_status()
             if  not node.leader_id and not node.isLeader:
-                print(f"Node {node.id}: Initiating leader election... inside while")
+                ##print(f"Node {node.id}: Initiating leader election... inside while")
                 node.start_election()
             if node.isLeader:
                 leader(node)
@@ -194,12 +196,13 @@ def start_node(n_id):
 
 
     except KeyboardInterrupt:
-        print(f"Node {n_id}: Stopping...")
+        pass
+        ##print(f"Node {n_id}: Stopping...")
 
 if __name__ == "__main__":
     if len(sys.argv) > 1 and sys.argv[1] == "single_run":
         if len(sys.argv) != 3:
-            print("Usage: script.py single_run <node_id>")
+            ##print("Usage: script.py single_run <node_id>")
             sys.exit(1)
         node_id = int(sys.argv[2])
         start_node(node_id)
