@@ -1,3 +1,4 @@
+import csv
 import socket
 import time
 from concurrent import futures
@@ -8,6 +9,7 @@ import helpers
 from helpers import Roles
 from leader_election_service import LeaderElectionService
 import queue
+import json
 
 from redis_client import RedisClient
 
@@ -40,9 +42,10 @@ class Node:
         self.go_no_go_new_line = helpers.Stage.PENDING
         self.line_status = {}
         self.redis_client = None
+        self.proposal_list = []
 
     def start_redis(self):
-        print("Starting Redis")
+        #print("Starting Redis")
         self.redis_client = RedisClient()
 
     def receive_messages(self):
@@ -52,7 +55,7 @@ class Node:
         mreq = socket.inet_aton(MULTICAST_GROUP) + socket.inet_aton("0.0.0.0")
         sock.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
 
-        print(f"Node {self.id}: Listening for multicast messages on port {self.port}...")
+        #print(f"Node {self.id}: Listening for multicast messages on port {self.port}...")
 
         try:
             while True:
@@ -60,12 +63,12 @@ class Node:
                 payload = data.decode()
                 headers = payload.split("-")
                 n_id = int(headers[0])
-                # print(addr)
+                # #print(addr)
                 if headers[1] == "Heartbeat" and n_id != self.id:
-                    # print(f"Node {self.id}:Receive Heartbeat from {n_id}")
+                    # #print(f"Node {self.id}:Receive Heartbeat from {n_id}")
                     self.nodes[n_id] = {'time': time.time(), 'role': headers[2]}
                 if headers[1] == "LeaderHeartbeat" and n_id != self.id:
-                    # print(f"Node {self.id}:Receive Leader Heartbeat from {n_id}")
+                    # #print(f"Node {self.id}:Receive Leader Heartbeat from {n_id}")
                     if not self.leader_id:
                         self.set_leader(n_id)  # set a leader if no leader found
                     elif self.leader_id[0] != n_id:
@@ -76,12 +79,12 @@ class Node:
                     self.set_leader(n_id)
 
                 if self.role == Roles.ACCEPTOR and headers[1] == "Prepare":
-                    self.proposals.put((n_id, headers[2], headers[3]))
-                    self.promise_proposal(n_id, headers[2])
+                    if headers[2] not in  self.proposal_list:
+                        self.proposals.put((n_id, headers[2], headers[3]))
+                        self.promise_proposal(n_id, headers[2])
 
                 if self.role == Roles.LEANER and headers[1] == "Learn":
                     self.accepted_proposals.put((n_id, headers[2], headers[3]))
-
         except KeyboardInterrupt:
             print(f"Node {self.id}: Receiver stopped.")
         finally:
@@ -100,7 +103,7 @@ class Node:
                 self.announce_leadership()
             else:
                 time.sleep(10) #Waiitng for other nods annowsments
-            print("Setting is election to false")
+            #print("Setting is election to false")
         self.is_election = False
 
     def challenge_higher_nodes(self):
@@ -109,14 +112,14 @@ class Node:
         for higher_id in sorted(self.nodes.keys(), reverse=True):
             if higher_id > self.id:
                 try:
-                    print(f"Node {self.id} challenging node {higher_id} through port {GRPC_PORT_OFFSET + higher_id}")
+                    #print(f"Node {self.id} challenging node {higher_id} through port {GRPC_PORT_OFFSET + higher_id}")
                     channel = grpc.insecure_channel(f"localhost:{GRPC_PORT_OFFSET + higher_id}")
                     stub = node_pb2_grpc.LeaderElectionStub(channel)
                     challenge_request = node_pb2.ChallengeRequest(node_id=self.id)
                     response = stub.Challenge(challenge_request)
-                    # print(response)
+                    # #print(response)
                     if response.acknowledged:
-                        print(f"Node {self.id}: Acknowledgment received from {higher_id}")
+                        #print(f"Node {self.id}: Acknowledgment received from {higher_id}")
                         response = response or True
                 except Exception as e:
                     print(f"Node {self.id}: Failed to communicate with {higher_id} ({e})")
@@ -131,47 +134,47 @@ class Node:
         sock.close()
         self.isLeader =True
         self.leader_id = (self.id,time.time())
-        print(f"Node {self.id}: broadcasting as leader")
+        print(f"Node {self.id}: I am Leader")
 
     def set_leader(self,n_id):
         if self.isLeader:
             if self.id < n_id:
                 self.leader_id = (n_id, time.time())
                 self.isLeader = False
-                print(f"Node {self.id}: Handing over the leadership to {n_id}")
+                #print(f"Node {self.id}: Handing over the leadership to {n_id}")
             else:
                 self.isLeader = True
-                print(f"Node {self.id}: Reject the Leadership offer form {n_id}")
+                #print(f"Node {self.id}: Reject the Leadership offer form {n_id}")
         else:
             self.leader_id = (n_id, time.time())
             self.isLeader = False
-            print(f"Node {self.id}: Recognized leader {n_id}")
+            #print(f"Node {self.id}: Recognized leader {n_id}")
 
 
 
     def updater_role_in_nodes(self,n_id,role):
         try:
-            # print(f"Leader  Setting Role of the node {n_id} through port {GRPC_PORT_OFFSET + n_id}")
+            # #print(f"Leader  Setting Role of the node {n_id} through port {GRPC_PORT_OFFSET + n_id}")
             channel = grpc.insecure_channel(f"localhost:{GRPC_PORT_OFFSET + n_id}")
             stub = node_pb2_grpc.LeaderElectionStub(channel)
             update_role_request = node_pb2.UpdateRoleRequest(new_role=role)
             response = stub.UpdateRole(update_role_request)
-            # print(response)
+            # #print(response)
             if response.success:
                 return response.success
         except Exception as e:
-            print(f"Node {self.id}: Failed to communicate with {n_id} ({e})")
+            #print(f"Node {self.id}: Failed to communicate with {n_id} ({e})")
             return False
 
 
 
     def rpcCheck(self):
-        print(f"node {self.id} Sending Request to {GRPC_PORT_OFFSET + 2}")
+        #print(f"node {self.id} Sending Request to {GRPC_PORT_OFFSET + 2}")
         channel = grpc.insecure_channel(f"localhost:{GRPC_PORT_OFFSET + 2}")
         stub = node_pb2_grpc.LeaderElectionStub(channel)
         challenge_request = node_pb2.ChallengeRequest(node_id=self.id)
         response = stub.Challenge(challenge_request)
-        print(response)
+        #print(response)
 
 
 
@@ -183,11 +186,11 @@ class Node:
             stub = node_pb2_grpc.LeaderElectionStub(channel)
             promise_request = node_pb2.PromiseRequest(node_id=self.id, proposal_number=proposal_number, promise=True)
             response = stub.PromiseProposal(promise_request)
-            # print(response)
+            # #print(response)
             if response.success:
                 return response.success
         except Exception as e:
-            print(f"Node {self.id}: Failed to communicate with {n_id} ({e})")
+            #print(f"Node {self.id}: Failed to communicate with {n_id} ({e})")
             return False
 
     def get_nodes_by_role(self, node_role, max_retries=5, delay=0.1):
@@ -210,10 +213,10 @@ class Node:
             time.sleep(1)
 
     def assign_roles(self):
-        # print(self.nodes)
+        # #print(self.nodes)
         for n_id,node in self.nodes.items() :
             if node["role"] == Roles.UNASSIGNED.name :
-                # print("Matched")
+                # #print("Matched")
                 nodes =self.gate_node_count()
                 role = helpers.get_assign_role(nodes).name
                 status = self.updater_role_in_nodes(n_id,role)
@@ -229,11 +232,11 @@ class Node:
                 inactive_nodes = [n_id for n_id, data in self.nodes.items() if current_time - data['time'] > timeout]
                 for n_id in inactive_nodes:
                     self.nodes.pop(n_id, None)
-                    print(f"Node {self.id}: Removed inactive node {n_id}")
+                    #print(f"Node {self.id}: Removed inactive node {n_id}")
                 if not self.isLeader :
                     if self.leader_id and current_time - self.leader_id[1] > timeout:
                         self.leader_id = ()
-                        print(f"Node {self.id}: Removed Leader")
+                        #print(f"Node {self.id}: Removed Leader")
 
 
     def update_node_status(self, timeout = 3):
@@ -242,12 +245,12 @@ class Node:
         inactive_nodes = [n_id for n_id, data in self.nodes.items() if current_time - data['time'] > timeout]
         for n_id in inactive_nodes:
             self.nodes.pop(n_id, None)
-            print(f"Node {self.id}: Removed inactive node {n_id}")
+            #print(f"Node {self.id}: Removed inactive node {n_id}")
         if not self.isLeader :
             if self.leader_id and current_time - self.leader_id[1] > timeout:
                 self.leader_id = ()
-                print(f"Node {self.id}: Removed Leader")
-        # print(self.nodes)
+                #print(f"Node {self.id}: Removed Leader")
+        # #print(self.nodes)
 
 
     def gate_node_count(self):
@@ -268,68 +271,114 @@ class Node:
             stub = node_pb2_grpc.LeaderElectionStub(channel)
             job_request = node_pb2.JobRequest(range=letter_range,text=new_text,page=page,line=line,sequence=str(sequence))
             response = stub.QueueJob(job_request)
-            # print(response)
+            # #print(response)
             if response.success:
                 return response.success
         except Exception as e:
-            print(f"Node {self.id}: Failed to communicate with {n_id} ({e})")
+            #print(f"Node {self.id}: Failed to communicate with {n_id} ({e})")
             return False
 
-    def send_proposal(self,proposal_number,value):
-        prepare_message = f"{self.id}-Prepare-{proposal_number}-{value}".encode()
+    def send_proposal(self, proposal_number, value_dict):
+        value_json = json.dumps(value_dict)  # Convert dict to a JSON string
+        prepare_message = f"{self.id}-Prepare-{proposal_number}-{value_json}".encode()
         sock = helpers.create_socket(is_receiver=False)
         sock.sendto(prepare_message, (MULTICAST_GROUP, self.port))
         sock.close()
+        print(f"Sent proposal: {prepare_message.decode()}")  # Debug output
 
 
 
     def validate_proposal(self,proposal):
-        values  =self.proposal_log[proposal]["values"]
-        new_value = int(helpers.get_most_common_value(values))
-        if self.proposal_log[proposal]["accepted"] is  None or new_value != self.proposal_log[proposal]["accepted"]:
-            self.proposal_log[proposal]["accepted"] = new_value
+        values = self.proposal_log[proposal]["values"]
+        new_value = helpers.get_most_present_value(values)  # Use the external function for validation
+
+        if self.proposal_log[proposal]["accepted"] is None or new_value != self.proposal_log[proposal]["accepted"]:
+            self.proposal_log[proposal]["accepted"] = new_value            #
             try:
-                learner_id =  next(iter( self.get_nodes_by_role(Roles.LEANER)))
+                learner_id = next(iter(self.get_nodes_by_role(Roles.LEANER)), None)
                 if learner_id:
                     channel = grpc.insecure_channel(f"localhost:{GRPC_PORT_OFFSET + learner_id}")
                     stub = node_pb2_grpc.LeaderElectionStub(channel)
-                    leaner_request = node_pb2.LeanerRequest(proposal_number=proposal , value=self.proposal_log[proposal]["accepted"],node_id=self.id)
-                    print(f"{self.role.name}: send result to leaner {proposal} value {new_value}")
-                    response = stub.InformLeanerRequest(leaner_request)
-                    # print(response)
+                    learner_request = node_pb2.LeanerRequest(
+                        proposal_number=proposal,
+                        value=self.proposal_log[proposal]["accepted"],
+                        node_id=self.id
+                    )
+                    print(f"{self.role.name} : inform the decision to leaner {proposal} : {new_value}")
+                    response = stub.InformLeanerRequest(learner_request)
+
                     if response.success:
                         return response.success
                 else:
-                    print(f"{self.role.name} Leaner Not Found")
+                    print(f"{self.role.name} Learner Not Found")
                     return False
             except Exception as e:
-                print(f"Node {self.role.name}: Failed to communicate with Leaner ({e})")
+                print(f"Node {self.role.name}: Failed to communicate with Learner ({e})")
                 return False
         else:
-            print(f"{self.role.name} same value no need to update leaner{new_value}")
+            print(f"{self.role.name}: Same value, no need to update Learner {new_value}")
             return True
 
+    def send_acceptor_decision(self,proposal,decision,letters):
+        try:
+            learner_id = next(iter(self.get_nodes_by_role(Roles.LEANER)), None)
+            if learner_id:
+                channel = grpc.insecure_channel(f"localhost:{GRPC_PORT_OFFSET + learner_id}")
+                stub = node_pb2_grpc.LeaderElectionStub(channel)
+                learner_request = node_pb2.LeanerRequest(
+                    proposal_number=proposal,
+                    value=decision,
+                    node_id=self.id,
+                    data = letters
+                )
+                print(f"{self.role.name} : inform the decision to leaner {proposal} : {decision}")
+                response = stub.InformLeanerRequest(learner_request)
 
-    def push_leander_queue(self,node_id,proposal_no,value):
-        self.accepted_proposals.put((node_id, proposal_no, value))
+                if response.success:
+                    return response.success
+            else:
+                print(f"{self.role.name} Learner Not Found")
+        except Exception as e:
+            print(f"Node {self.role.name}: Failed to communicate with Learner ({e})")
 
 
-    def process_leaning(self,result):
-        if helpers.has_negative_one(result):
-            print(f"{self.role.name} majority votes not found")
-            self.inform_leader(False)
-        else:
-            # self.redis_client.set_value('last_success_proposal', proposal)
-            line_numbers = ""
-            for proposal ,value in result.items():
-                line_numbers = proposal[10:-1]
-                print(f"Setting the final value for {proposal[10:]} value {value}")
-                self.redis_client.set_value(proposal[10:],value)
-            self.inform_leader(True)
-            self.redis_client.set_value("last_success_proposal",line_numbers)
+
+
+    def push_leander_queue(self,node_id,proposal_no,value,data):
+        self.accepted_proposals.put((node_id, proposal_no, value,data))
+
+    def process_learning(self,proposal ,status,data):
+        response = self.inform_leader(status)
+        if status and response:
+            self.redis_client.update_letter_counts(data)
+            self.redis_client.set_value("last_success_proposal", proposal)
+
+
+    def show_current_count(self):
+        data = self.redis_client.get_all_keys_and_values()
+        # Sort the dictionary by keys (alphabetically)
+        sorted_data = dict(sorted(data.items()))
+
+        # Append the sorted data to a CSV file if it exists, otherwise create a new one
+        file_exists = False
+        try:
+            with open("sorted_data.csv", "r") as csvfile:
+                file_exists = True
+        except FileNotFoundError:
+            pass
+
+        with open("sorted_data.csv", "a", newline="") as csvfile:
+            writer = csv.writer(csvfile)
+            if not file_exists:
+                writer.writerow(["Key", "Value"])
+            for key, value in sorted_data.items():
+                writer.writerow([key, value])
+
+        # Pass the sorted data to the next function
+        helpers.print_dict_table(sorted_data)
 
     def inform_leader(self,status):
-        print("Informing Leader")
+        ##print("Informing Leader")
         if not self.leader_id:
             return
         try:
@@ -337,7 +386,7 @@ class Node:
             stub = node_pb2_grpc.LeaderElectionStub(channel)
             result_request = node_pb2.ResultRequest(proposal_number = "ABC",status=status)
             response = stub.InformFinalResult(result_request)
-            # print(response)
+            # ##print(response)
             if response.success:
                 return response.success
         except Exception as e:
@@ -353,10 +402,10 @@ class Node:
 
     def update_line_status(self,status):
         if status:
-            print(f"{self.role.name} Validation Success")
+            ##print(f"{self.role.name} Validation Success")
             self.go_no_go_new_line = helpers.Stage.GO
         else:
-            print(f"{self.role.name} Validation Fail")
+            ##print(f"{self.role.name} Validation Fail")
             self.go_no_go_new_line = helpers.Stage.NoGO
 
 
@@ -367,7 +416,7 @@ class Node:
         node_pb2_grpc.add_LeaderElectionServicer_to_server(LeaderElectionService(self), server)
         server.add_insecure_port(f"[::]:{self.grpc_port}")
         server.start()
-        print(f"Node {self.id}: gRPC server started on port {self.grpc_port}")
+        ##print(f"Node {self.id}: gRPC server started on port {self.grpc_port}")
         server.wait_for_termination()
 
 

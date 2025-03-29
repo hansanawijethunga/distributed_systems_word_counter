@@ -2,6 +2,7 @@ from enum import Enum
 import socket
 import string
 from collections import Counter
+import json
 
 
 TTL = 2
@@ -105,15 +106,17 @@ def assign_ranges(nodes: dict) -> dict:
 
 def count_words_by_letter(letter_range, text):
     start_letter, end_letter = letter_range.split('-')
-    letter_counts = {chr(letter): 0 for letter in range(ord(start_letter), ord(end_letter) + 1)}
+    start_letter, end_letter = start_letter.upper(), end_letter.upper()
 
+    letter_counts = {chr(letter): 0 for letter in range(ord(start_letter), ord(end_letter) + 1)}
     words = text.split()
 
     for word in words:
         first_letter = word[0].upper()
         if start_letter <= first_letter <= end_letter:
             letter_counts[first_letter] += 1
-    return letter_counts  # Now returning a dictionary
+
+    return letter_counts
 
 def get_most_common_value(values):
     counter = Counter(values)
@@ -124,6 +127,18 @@ def get_most_common_value(values):
     top_values = [val for val, count in most_common if count == max_count]
     accepted_value = top_values[0] if len(top_values) == 1 else None
     return accepted_value
+
+
+def get_most_present_value(values):
+    """Aggregate letter counts from multiple proposals and return the final combined dictionary as JSON."""
+    combined_counts = Counter()
+
+    for value in values:
+        for letter, count in value.items():
+            combined_counts[letter] += count
+
+    return json.dumps(dict(combined_counts))  # Convert Counter back to JSON
+
 
 
 def get_most_voted_number(nums,total_voter_count):
@@ -155,14 +170,15 @@ def all_values_true(dictionary):
 
 def filter_exceeding_threshold(data: dict, threshold: int):
     result = {}
-
-    for key, value_dict in data.items():
+    # print(data)
+    for proposal, value_dict in data.items():
         values = value_dict["values"]
-        count_dict = Counter(values)  # Count occurrences of each number
-        exceeding_numbers = [num for num, count in count_dict.items() if count > threshold]
-
-        result[key] = exceeding_numbers[0] if exceeding_numbers else -1
-
+        value,count =most_common_dict(values)
+        if count > threshold:
+            result[proposal] = value
+        else:
+            return False
+    # print(result)
     return result
 
 def has_negative_one(data: dict) -> bool:
@@ -173,8 +189,52 @@ def has_negative_one(data: dict) -> bool:
 
 
 
+
+def most_common_dict(dict_list):
+    """
+    Finds the most common dictionary in a list of dictionaries.
+
+    Args:
+        dict_list (list): A list of dictionaries.
+
+    Returns:
+        tuple: (most_common_dict, occurrence_count)
+    """
+    # Convert dictionaries to JSON strings (hashable format)
+    dict_strings = [json.dumps(d, sort_keys=True) for d in dict_list]
+
+    # Count occurrences
+    counter = Counter(dict_strings)
+
+    # Find the most common dictionary and its count
+    most_common_str, most_common_count = counter.most_common(1)[0]
+
+    # Convert back to dictionary
+    most_common_dict = json.loads(most_common_str)
+
+    return most_common_dict, most_common_count
+
+
+def print_dict_table(data: dict):
+    """Prints a dictionary in a tabular format with two columns: Keys and Values."""
+    if not data:
+        print("No data to display.")
+        return
+
+    key_width = max(len(str(k)) for k in data.keys()) + 2
+    value_width = max(len(str(v)) for v in data.values()) + 2
+
+    print(f"{'Key'.ljust(key_width)} | {'Value'.ljust(value_width)}")
+    print("-" * (key_width + value_width + 3))
+
+    for key, value in data.items():
+        print(f"{str(key).ljust(key_width)} | {str(value).ljust(value_width)}")
+
+
+
 if __name__ == "__main__":
+    pass
     # nums1 = [4,3,3,3,3]
     # total_voter_count1 = 8
-    # print(get_most_voted_number(nums1, total_voter_count1))  # Output: 3
-    print(generate_alphabet_keys("10000000"))
+    # #print(get_most_voted_number(nums1, total_voter_count1))  # Output: 3
+    #print(generate_alphabet_keys("10000000"))
