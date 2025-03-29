@@ -11,13 +11,15 @@ from node import Node
 from pdf_reader import PDFReader
 import json
 
+from side_car import start_side_car
+
 PDF_PATH = 'Material/Document.pdf'
 
 
 def start_threads(node):
     receiver_thread = threading.Thread(target=node.receive_messages, daemon=True)
     receiver_thread.start()
-    #
+
     heartbeat_thread = threading.Thread(target=node.send_heartbeat, daemon=True)
     heartbeat_thread.start()
 
@@ -184,8 +186,14 @@ def learner(node):
         pass
         ##print(f"{node.role.name} Waiting for proposals")
 
+
+
+
 def start_node(n_id):
     node = Node(n_id)
+    side_car_procress = multiprocessing.Process(target=start_side_car, args=(node_id,))
+    side_car_procress.start()
+    print("Side Car Started")
     start_threads(node)
     try:
         ##print(f"Listening for other nodes")

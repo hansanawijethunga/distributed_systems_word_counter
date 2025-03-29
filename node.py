@@ -358,23 +358,6 @@ class Node:
         data = self.redis_client.get_all_keys_and_values()
         # Sort the dictionary by keys (alphabetically)
         sorted_data = dict(sorted(data.items()))
-
-        # Append the sorted data to a CSV file if it exists, otherwise create a new one
-        file_exists = False
-        try:
-            with open("sorted_data.csv", "r") as csvfile:
-                file_exists = True
-        except FileNotFoundError:
-            pass
-
-        with open("sorted_data.csv", "a", newline="") as csvfile:
-            writer = csv.writer(csvfile)
-            if not file_exists:
-                writer.writerow(["Key", "Value"])
-            for key, value in sorted_data.items():
-                writer.writerow([key, value])
-
-        # Pass the sorted data to the next function
         helpers.print_dict_table(sorted_data)
 
     def inform_leader(self,status):
