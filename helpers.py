@@ -215,6 +215,22 @@ def most_common_dict(dict_list):
     return most_common_dict, most_common_count
 
 
+def print_dict_table(data: dict):
+    """Prints a dictionary in a tabular format with two columns: Keys and Values."""
+    if not data:
+        print("No data to display.")
+        return
+
+    key_width = max(len(str(k)) for k in data.keys()) + 2
+    value_width = max(len(str(v)) for v in data.values()) + 2
+
+    print(f"{'Key'.ljust(key_width)} | {'Value'.ljust(value_width)}")
+    print("-" * (key_width + value_width + 3))
+
+    for key, value in data.items():
+        print(f"{str(key).ljust(key_width)} | {str(value).ljust(value_width)}")
+
+
 
 if __name__ == "__main__":
     pass

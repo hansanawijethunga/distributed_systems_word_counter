@@ -13,6 +13,11 @@ class RedisClient:
         """Get the value of a key"""
         return self.client.get(key)
 
+    def set_bulk_values(self, data):
+        """Set multiple key-value pairs in Redis from a dictionary"""
+        if isinstance(data, dict):
+            self.client.mset(data)
+
     def delete_key(self, key):
         """Delete a key from Redis"""
         self.client.delete(key)
@@ -47,12 +52,26 @@ class RedisClient:
         """Clear all databases"""
         self.client.flushall()
 
+    def update_letter_counts(self, data):
+        """Update Redis with letter counts, adding to existing values if keys exist"""
+        with self.client.pipeline() as pipe:
+            for key, value in data.items():
+                try:
+                    pipe.incrby(key, value)  # Increment the existing value by the new value
+                except redis.RedisError as e:
+                    print(f"Error updating key {key}: {e}")
+            pipe.execute()
+
+
 # Example Usage
 if __name__ == "__main__":
     redis_client = RedisClient()
     abc = redis_client.get_value("last_success_proposal")
-    print(abc)
-    if abc is None or "":
-        print("no Value")
+    # print(abc)
+    # if abc is None or "":
+    #     print("no Value")
     redis_client.clear_all_dbs()
-    print(redis_client.get_all_keys_and_values())  # Output: None
+    # redis_client.set_value("K",30)
+    # redis_client.update_letter_counts({"A":10,"B":20,"C":30})
+    # print( redis_client.get_value("A"))
+    print(redis_client.get_all_keys_and_values())

@@ -73,5 +73,5 @@ message LeanerRequest {
     string proposal_number = 1;
     bool value = 2;
     int32 node_id = 3;
-    string data = 4
+    string data = 4;
 }

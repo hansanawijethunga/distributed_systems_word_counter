@@ -31,6 +31,7 @@ def start_threads(node):
 def leader(node):
     pdf_reader = PDFReader(PDF_PATH)
     page_count = pdf_reader.get_page_count()
+    # print(page_count)
     #print("Document Ready")
     node.start_redis()
     last_success_page_line = node.redis_client.get_value("last_success_proposal")
@@ -41,20 +42,23 @@ def leader(node):
         #print("Previous Procress Fond")
         continue_flag = True
         page_start = int(last_success_page_line[:4])
-        line_start = int(last_success_page_line[4:7])
+        line_start = int(last_success_page_line[4:7])+1
 
     for page_no in range(page_start, page_count):
-        # #print(f"Reading page {i}")
+        # print(f"Reading page {page_start}")
         text_list = pdf_reader.get_page_text_lines(page_no)
         if continue_flag:
             line_no = line_start
             continue_flag = False
         else:
             line_no = 0
+            # print(f"Line No {line_no}")
+            # print(f"Text List {text_list}")
         while line_no < len(text_list):  # loop will not increment if any one of the proposer nodes failed respond back
             if not node.isLeader:  # retuen to main loop if not a leader anymore
                 #print("Not the leader anymore stopping all operations")
                 return
+            # print(f"reading {line_no}")
             node.initiate_new_line(page_no,line_no)
             node.update_node_status()
             node.assign_roles()
@@ -121,14 +125,18 @@ def acceptor(node):
             'U': -1, 'V': -1, 'W': -1, 'X': -1, 'Y': -1, 'Z': -1
         }
         line = ""
+        # proposal_list = []
         while True:
             try:
                 # Extract parts
-                n_id, proposal, value_json = node.proposals.get(timeout=1)  # Allow for dictionary as last part
-                line = proposal[10:-2]
-                value = json.loads(value_json)
-                for letter, count in value.items():
-                    letters[letter] = count
+                n_id, proposal, value_json = node.proposals.get(timeout=2)  # Allow for dictionary as last part
+                if proposal not in node.proposal_list:
+                    node.proposal_list.append(proposal)
+                    line = proposal[10:-2]
+                    value = json.loads(value_json)
+                    for letter, count in value.items():
+
+                        letters[letter] = count
             except queue.Empty:
                 ##print(f"{node.role.name} No proposals received within 5 seconds.")
                 break
@@ -136,38 +144,42 @@ def acceptor(node):
         decision = not helpers.has_negative_one(letters)  #True if list do not have negative -1
         print(decision)
         node.send_acceptor_decision(line, decision, json.dumps(letters) if decision else "{}")
+        node.proposals =  queue.Queue()
     else:
         pass
         #print("Acceptor Waiting for proposals")
 
 def learner(node):
     if not node.accepted_proposals.empty():
-        print("Starting......")
+        # print("Starting......")
         true_count = 0
         majority_acceptor_count = len(node.get_nodes_by_role(Roles.ACCEPTOR)) // 2
-        print(f"Majority count { majority_acceptor_count}" )
+        # print(f"Majority count { majority_acceptor_count}" )
         status = False
         proposal= ""
         data = {}
         while True:
             try:
-                n_id, p, value,d = node.accepted_proposals.get(timeout=2)
-                proposal =p
-                print(f"{n_id} proposal {proposal} {value} ")
-                if value:
-                    true_count += 1
-                print(f"True Count {true_count}")
-                if true_count > majority_acceptor_count:
-                    status = True
-                    data =json.loads(d)
-                    break
+                n_id, p, value,d = node.accepted_proposals.get(timeout=5)
+                if p not in node.proposal_list:
+                    proposal =p
+                    # print(f"{n_id} proposal {proposal} {value} ")
+                    if value:
+                        true_count += 1
+                    # print(f"True Count {true_count}")
+                    if true_count > majority_acceptor_count:
+                        status = True
+                        data =json.loads(d)
+                        node.proposal_list.append(p)
+                        break
             except queue.Empty:
                 ##print(f"{node.role.name} No proposals received within 5 seconds.")
                 break
         print(f"Final Decision is {status}")
+        # print(data)
+        node.process_learning(proposal, status,data)
+        node.show_current_count()
         node.accepted_proposals = queue.Queue()
-        node.process_learning(proposal,status)
-
     else:
         pass
         ##print(f"{node.role.name} Waiting for proposals")

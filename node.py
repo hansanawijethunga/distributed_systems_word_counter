@@ -1,3 +1,4 @@
+import csv
 import socket
 import time
 from concurrent import futures
@@ -41,6 +42,7 @@ class Node:
         self.go_no_go_new_line = helpers.Stage.PENDING
         self.line_status = {}
         self.redis_client = None
+        self.proposal_list = []
 
     def start_redis(self):
         #print("Starting Redis")
@@ -77,12 +79,12 @@ class Node:
                     self.set_leader(n_id)
 
                 if self.role == Roles.ACCEPTOR and headers[1] == "Prepare":
-                    self.proposals.put((n_id, headers[2], headers[3]))
-                    self.promise_proposal(n_id, headers[2])
+                    if headers[2] not in  self.proposal_list:
+                        self.proposals.put((n_id, headers[2], headers[3]))
+                        self.promise_proposal(n_id, headers[2])
 
                 if self.role == Roles.LEANER and headers[1] == "Learn":
                     self.accepted_proposals.put((n_id, headers[2], headers[3]))
-
         except KeyboardInterrupt:
             print(f"Node {self.id}: Receiver stopped.")
         finally:
@@ -317,7 +319,7 @@ class Node:
             print(f"{self.role.name}: Same value, no need to update Learner {new_value}")
             return True
 
-    def send_acceptor_decision(self,proposal,decision):
+    def send_acceptor_decision(self,proposal,decision,letters):
         try:
             learner_id = next(iter(self.get_nodes_by_role(Roles.LEANER)), None)
             if learner_id:
@@ -326,7 +328,8 @@ class Node:
                 learner_request = node_pb2.LeanerRequest(
                     proposal_number=proposal,
                     value=decision,
-                    node_id=self.id
+                    node_id=self.id,
+                    data = letters
                 )
                 print(f"{self.role.name} : inform the decision to leaner {proposal} : {decision}")
                 response = stub.InformLeanerRequest(learner_request)
@@ -341,14 +344,38 @@ class Node:
 
 
 
-    def push_leander_queue(self,node_id,proposal_no,value):
-        self.accepted_proposals.put((node_id, proposal_no, value))
+    def push_leander_queue(self,node_id,proposal_no,value,data):
+        self.accepted_proposals.put((node_id, proposal_no, value,data))
 
-    def process_learning(self,proposal ,status):
-        self.inform_leader(status)
-        if status:
+    def process_learning(self,proposal ,status,data):
+        response = self.inform_leader(status)
+        if status and response:
+            self.redis_client.update_letter_counts(data)
             self.redis_client.set_value("last_success_proposal", proposal)
 
+
+    def show_current_count(self):
+        data = self.redis_client.get_all_keys_and_values()
+        # Sort the dictionary by keys (alphabetically)
+        sorted_data = dict(sorted(data.items()))
+
+        # Append the sorted data to a CSV file if it exists, otherwise create a new one
+        file_exists = False
+        try:
+            with open("sorted_data.csv", "r") as csvfile:
+                file_exists = True
+        except FileNotFoundError:
+            pass
+
+        with open("sorted_data.csv", "a", newline="") as csvfile:
+            writer = csv.writer(csvfile)
+            if not file_exists:
+                writer.writerow(["Key", "Value"])
+            for key, value in sorted_data.items():
+                writer.writerow([key, value])
+
+        # Pass the sorted data to the next function
+        helpers.print_dict_table(sorted_data)
 
     def inform_leader(self,status):
         ##print("Informing Leader")
@@ -363,7 +390,7 @@ class Node:
             if response.success:
                 return response.success
         except Exception as e:
-            ##print(f"Node {self.id}: Failed to communicate with {self.leader_id[0]} ({e})")
+            print(f"Node {self.id}: Failed to communicate with {self.leader_id[0]} ({e})")
             return False
 
     def initiate_new_line(self, page_no, line_no):

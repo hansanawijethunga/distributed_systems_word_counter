@@ -47,12 +47,13 @@ class LeaderElectionService(node_pb2_grpc.LeaderElectionServicer):
         return node_pb2.AcknowledgementResponse(success=True)
 
     def InformLeanerRequest(self,request,context):
-        #print(f"Request{request}")
+        # print(f"Request{request}")
         node_id = request.node_id
         proposal_number = request.proposal_number
         value = request.value
         data = request.data
-        self.node.push_leander_queue(node_id,proposal_number,value,data)
+        if proposal_number not in self.node.proposal_list:
+            self.node.push_leander_queue(node_id,proposal_number,value,data)
         return node_pb2.AcknowledgementResponse(success=True)
 
 
