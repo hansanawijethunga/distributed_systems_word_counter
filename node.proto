@@ -1,38 +1,77 @@
 syntax = "proto3";
-package distributed;
 
-service NodeService {
-  rpc Register(NodeInfo) returns (RegistrationResponse);
-  rpc BroadcastRoles(RolesInfo) returns (Ack);
-  rpc ProcessLine(LineRequest) returns (Ack);
-  rpc SendCount(CountRequest) returns (Ack);
+package leader_election;
+
+// Service for leader election
+service LeaderElection {
+  // A node challenges a higher node
+  rpc Challenge (ChallengeRequest) returns (ChallengeResponse);
+
+  // Method to update the role of a node
+  rpc UpdateRole (UpdateRoleRequest) returns (UpdateRoleResponse);
+
+  // Queue a job to be processed
+  rpc QueueJob (JobRequest) returns (AcknowledgementResponse);
+
+  rpc PromiseProposal (PromiseRequest) returns (AcknowledgementResponse);
+
+  rpc InformFinalResult(ResultRequest) returns (AcknowledgementResponse);
+
+  rpc InformLeanerRequest(LeanerRequest) returns (AcknowledgementResponse);
 }
 
-message NodeInfo {
-  string node_address = 1;
+// Request sent when challenging a higher node
+message ChallengeRequest {
+  int32 node_id = 1;     // Node making the challenge
 }
 
-message RegistrationResponse {
-  string assigned_role = 1;
-  string message = 2;
-  repeated string all_nodes = 3;
-  map<string, string> roles = 4;
+// Response to a challenge message
+message ChallengeResponse {
+  bool acknowledged = 1; // Whether the challenge was acknowledged
 }
 
-message RolesInfo {
-  map<string, string> roles = 1;
+// Request to update the role of a node
+message UpdateRoleRequest {
+  string new_role = 1; // The new role for the node
 }
 
-message LineRequest {
-  string line = 1;
+message ProposalRequest {
+  string proposal_no = 1; // The new role for the node
 }
 
-message CountRequest {
-  string node_address = 1;
-  map<string, int32> counts = 2;
+// Response to the role update request
+message UpdateRoleResponse {
+  bool success = 1;      // Whether the role update was successful
 }
 
-message Ack {
-  bool success = 1;
-  string message = 2;
+// Request for job details
+message JobRequest {
+  int32 page = 1;        // Page number for the job
+  int32 line = 2;        // Line number for the job
+  string range = 3;      // Range of the job
+  string text = 4;       // Text associated with the job
+  string sequence = 5;
+}
+
+// Acknowledgement response for job queue action
+message AcknowledgementResponse {
+  bool success = 1; // Whether the job was successfully queued
+}
+
+message PromiseRequest {
+  int32 node_id = 1;
+  string proposal_number = 2;
+  bool promise = 3;
+}
+
+message ResultRequest {
+    string proposal_number = 1;
+    bool status = 2;
+}
+
+message LeanerRequest {
+    string proposal_number = 1;
+    bool value = 2;
+    int32 node_id = 3;
+    string data = 4;
 }

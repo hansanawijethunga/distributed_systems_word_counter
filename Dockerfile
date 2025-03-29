@@ -13,7 +13,7 @@ COPY . .
 
 # Expose the ports used by the application.
 # Each container can use the same internal port because they run in isolated environments.
-EXPOSE 5001 5002 5003
+EXPOSE 5000
 
 # Define the command to run your application.
 CMD ["python", "main.py"]

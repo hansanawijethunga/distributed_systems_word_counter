@@ -9,3 +9,8 @@ requests==2.31.0
 python-dotenv==1.0.1
 loguru==0.7.2
 
+
+tweepy~=4.15.0
+protobuf~=5.29.3
+pdfplumber~=0.11.5
+redis~=5.2.1

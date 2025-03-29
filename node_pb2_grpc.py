@@ -30,8 +30,9 @@ if _version_not_supported:
     )
 
 
-class NodeServiceStub(object):
-    """Missing associated documentation comment in .proto file."""
+class LeaderElectionStub(object):
+    """Service for leader election
+    """
 
     def __init__(self, channel):
         """Constructor.
@@ -39,91 +40,128 @@ class NodeServiceStub(object):
         Args:
             channel: A grpc.Channel.
         """
-        self.Register = channel.unary_unary(
-                '/distributed.NodeService/Register',
-                request_serializer=node__pb2.NodeInfo.SerializeToString,
-                response_deserializer=node__pb2.RegistrationResponse.FromString,
+        self.Challenge = channel.unary_unary(
+                '/leader_election.LeaderElection/Challenge',
+                request_serializer=node__pb2.ChallengeRequest.SerializeToString,
+                response_deserializer=node__pb2.ChallengeResponse.FromString,
                 _registered_method=True)
-        self.BroadcastRoles = channel.unary_unary(
-                '/distributed.NodeService/BroadcastRoles',
-                request_serializer=node__pb2.RolesInfo.SerializeToString,
-                response_deserializer=node__pb2.Ack.FromString,
+        self.UpdateRole = channel.unary_unary(
+                '/leader_election.LeaderElection/UpdateRole',
+                request_serializer=node__pb2.UpdateRoleRequest.SerializeToString,
+                response_deserializer=node__pb2.UpdateRoleResponse.FromString,
                 _registered_method=True)
-        self.ProcessLine = channel.unary_unary(
-                '/distributed.NodeService/ProcessLine',
-                request_serializer=node__pb2.LineRequest.SerializeToString,
-                response_deserializer=node__pb2.Ack.FromString,
+        self.QueueJob = channel.unary_unary(
+                '/leader_election.LeaderElection/QueueJob',
+                request_serializer=node__pb2.JobRequest.SerializeToString,
+                response_deserializer=node__pb2.AcknowledgementResponse.FromString,
                 _registered_method=True)
-        self.SendCount = channel.unary_unary(
-                '/distributed.NodeService/SendCount',
-                request_serializer=node__pb2.CountRequest.SerializeToString,
-                response_deserializer=node__pb2.Ack.FromString,
+        self.PromiseProposal = channel.unary_unary(
+                '/leader_election.LeaderElection/PromiseProposal',
+                request_serializer=node__pb2.PromiseRequest.SerializeToString,
+                response_deserializer=node__pb2.AcknowledgementResponse.FromString,
+                _registered_method=True)
+        self.InformFinalResult = channel.unary_unary(
+                '/leader_election.LeaderElection/InformFinalResult',
+                request_serializer=node__pb2.ResultRequest.SerializeToString,
+                response_deserializer=node__pb2.AcknowledgementResponse.FromString,
+                _registered_method=True)
+        self.InformLeanerRequest = channel.unary_unary(
+                '/leader_election.LeaderElection/InformLeanerRequest',
+                request_serializer=node__pb2.LeanerRequest.SerializeToString,
+                response_deserializer=node__pb2.AcknowledgementResponse.FromString,
                 _registered_method=True)
 
 
-class NodeServiceServicer(object):
-    """Missing associated documentation comment in .proto file."""
+class LeaderElectionServicer(object):
+    """Service for leader election
+    """
 
-    def Register(self, request, context):
+    def Challenge(self, request, context):
+        """A node challenges a higher node
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def UpdateRole(self, request, context):
+        """Method to update the role of a node
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def QueueJob(self, request, context):
+        """Queue a job to be processed
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def PromiseProposal(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
-    def BroadcastRoles(self, request, context):
+    def InformFinalResult(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
-    def ProcessLine(self, request, context):
-        """Missing associated documentation comment in .proto file."""
-        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-        context.set_details('Method not implemented!')
-        raise NotImplementedError('Method not implemented!')
-
-    def SendCount(self, request, context):
+    def InformLeanerRequest(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
 
-def add_NodeServiceServicer_to_server(servicer, server):
+def add_LeaderElectionServicer_to_server(servicer, server):
     rpc_method_handlers = {
-            'Register': grpc.unary_unary_rpc_method_handler(
-                    servicer.Register,
-                    request_deserializer=node__pb2.NodeInfo.FromString,
-                    response_serializer=node__pb2.RegistrationResponse.SerializeToString,
+            'Challenge': grpc.unary_unary_rpc_method_handler(
+                    servicer.Challenge,
+                    request_deserializer=node__pb2.ChallengeRequest.FromString,
+                    response_serializer=node__pb2.ChallengeResponse.SerializeToString,
             ),
-            'BroadcastRoles': grpc.unary_unary_rpc_method_handler(
-                    servicer.BroadcastRoles,
-                    request_deserializer=node__pb2.RolesInfo.FromString,
-                    response_serializer=node__pb2.Ack.SerializeToString,
+            'UpdateRole': grpc.unary_unary_rpc_method_handler(
+                    servicer.UpdateRole,
+                    request_deserializer=node__pb2.UpdateRoleRequest.FromString,
+                    response_serializer=node__pb2.UpdateRoleResponse.SerializeToString,
             ),
-            'ProcessLine': grpc.unary_unary_rpc_method_handler(
-                    servicer.ProcessLine,
-                    request_deserializer=node__pb2.LineRequest.FromString,
-                    response_serializer=node__pb2.Ack.SerializeToString,
+            'QueueJob': grpc.unary_unary_rpc_method_handler(
+                    servicer.QueueJob,
+                    request_deserializer=node__pb2.JobRequest.FromString,
+                    response_serializer=node__pb2.AcknowledgementResponse.SerializeToString,
             ),
-            'SendCount': grpc.unary_unary_rpc_method_handler(
-                    servicer.SendCount,
-                    request_deserializer=node__pb2.CountRequest.FromString,
-                    response_serializer=node__pb2.Ack.SerializeToString,
+            'PromiseProposal': grpc.unary_unary_rpc_method_handler(
+                    servicer.PromiseProposal,
+                    request_deserializer=node__pb2.PromiseRequest.FromString,
+                    response_serializer=node__pb2.AcknowledgementResponse.SerializeToString,
+            ),
+            'InformFinalResult': grpc.unary_unary_rpc_method_handler(
+                    servicer.InformFinalResult,
+                    request_deserializer=node__pb2.ResultRequest.FromString,
+                    response_serializer=node__pb2.AcknowledgementResponse.SerializeToString,
+            ),
+            'InformLeanerRequest': grpc.unary_unary_rpc_method_handler(
+                    servicer.InformLeanerRequest,
+                    request_deserializer=node__pb2.LeanerRequest.FromString,
+                    response_serializer=node__pb2.AcknowledgementResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
-            'distributed.NodeService', rpc_method_handlers)
+            'leader_election.LeaderElection', rpc_method_handlers)
     server.add_generic_rpc_handlers((generic_handler,))
-    server.add_registered_method_handlers('distributed.NodeService', rpc_method_handlers)
+    server.add_registered_method_handlers('leader_election.LeaderElection', rpc_method_handlers)
 
 
  # This class is part of an EXPERIMENTAL API.
-class NodeService(object):
-    """Missing associated documentation comment in .proto file."""
+class LeaderElection(object):
+    """Service for leader election
+    """
 
     @staticmethod
-    def Register(request,
+    def Challenge(request,
             target,
             options=(),
             channel_credentials=None,
@@ -136,9 +174,9 @@ class NodeService(object):
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/distributed.NodeService/Register',
-            node__pb2.NodeInfo.SerializeToString,
-            node__pb2.RegistrationResponse.FromString,
+            '/leader_election.LeaderElection/Challenge',
+            node__pb2.ChallengeRequest.SerializeToString,
+            node__pb2.ChallengeResponse.FromString,
             options,
             channel_credentials,
             insecure,
@@ -150,7 +188,7 @@ class NodeService(object):
             _registered_method=True)
 
     @staticmethod
-    def BroadcastRoles(request,
+    def UpdateRole(request,
             target,
             options=(),
             channel_credentials=None,
@@ -163,9 +201,9 @@ class NodeService(object):
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/distributed.NodeService/BroadcastRoles',
-            node__pb2.RolesInfo.SerializeToString,
-            node__pb2.Ack.FromString,
+            '/leader_election.LeaderElection/UpdateRole',
+            node__pb2.UpdateRoleRequest.SerializeToString,
+            node__pb2.UpdateRoleResponse.FromString,
             options,
             channel_credentials,
             insecure,
@@ -177,7 +215,7 @@ class NodeService(object):
             _registered_method=True)
 
     @staticmethod
-    def ProcessLine(request,
+    def QueueJob(request,
             target,
             options=(),
             channel_credentials=None,
@@ -190,9 +228,9 @@ class NodeService(object):
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/distributed.NodeService/ProcessLine',
-            node__pb2.LineRequest.SerializeToString,
-            node__pb2.Ack.FromString,
+            '/leader_election.LeaderElection/QueueJob',
+            node__pb2.JobRequest.SerializeToString,
+            node__pb2.AcknowledgementResponse.FromString,
             options,
             channel_credentials,
             insecure,
@@ -204,7 +242,7 @@ class NodeService(object):
             _registered_method=True)
 
     @staticmethod
-    def SendCount(request,
+    def PromiseProposal(request,
             target,
             options=(),
             channel_credentials=None,
@@ -217,9 +255,63 @@ class NodeService(object):
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/distributed.NodeService/SendCount',
-            node__pb2.CountRequest.SerializeToString,
-            node__pb2.Ack.FromString,
+            '/leader_election.LeaderElection/PromiseProposal',
+            node__pb2.PromiseRequest.SerializeToString,
+            node__pb2.AcknowledgementResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def InformFinalResult(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/leader_election.LeaderElection/InformFinalResult',
+            node__pb2.ResultRequest.SerializeToString,
+            node__pb2.AcknowledgementResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def InformLeanerRequest(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/leader_election.LeaderElection/InformLeanerRequest',
+            node__pb2.LeanerRequest.SerializeToString,
+            node__pb2.AcknowledgementResponse.FromString,
             options,
             channel_credentials,
             insecure,
