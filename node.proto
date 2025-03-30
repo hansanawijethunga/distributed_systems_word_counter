@@ -20,6 +20,11 @@ service LeaderElection {
   rpc InformLeanerRequest(LeanerRequest) returns (AcknowledgementResponse);
 }
 
+// New LoginService
+service LoginService {
+  rpc LogMessageRequest (LogRequest) returns (AcknowledgementResponse);
+}
+
 // Request sent when challenging a higher node
 message ChallengeRequest {
   int32 node_id = 1;     // Node making the challenge
@@ -74,4 +79,9 @@ message LeanerRequest {
     bool value = 2;
     int32 node_id = 3;
     string data = 4;
+}
+
+message LogRequest {
+    int32 log_level = 1;
+    string message = 2;
 }

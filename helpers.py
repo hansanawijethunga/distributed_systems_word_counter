@@ -20,6 +20,13 @@ class Stage(Enum):
     NoGO = 2
 
 
+class LogLevels(Enum):
+    INFORMATION = 0
+    WARNING = 1
+    ERROR = 2
+    DEBUG = 3
+
+
 
 def create_socket(is_receiver=False):
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
@@ -229,6 +236,9 @@ def print_dict_table(data: dict):
 
     for key, value in data.items():
         print(f"{str(key).ljust(key_width)} | {str(value).ljust(value_width)}")
+
+
+
 
 
 

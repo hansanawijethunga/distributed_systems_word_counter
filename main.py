@@ -186,21 +186,23 @@ def learner(node):
         pass
         ##print(f"{node.role.name} Waiting for proposals")
 
-
+def start_process_side_car(node_id):
+    side_car_procress = multiprocessing.Process(target=start_side_car, args=(node_id,))
+    side_car_procress.daemon = True
+    side_car_procress.start()
 
 
 def start_node(n_id):
     node = Node(n_id)
-    side_car_procress = multiprocessing.Process(target=start_side_car, args=(node_id,))
-    side_car_procress.start()
-    print("Side Car Started")
     start_threads(node)
+    start_process_side_car(n_id)
     try:
         ##print(f"Listening for other nodes")
         time.sleep(5)
         if not node.leader_id:
             ##print(f"Node {node.id}: Initiating leader election...")
             node.start_election()
+            node.log("Election Started")
             # time.sleep(10)
         while True:
             # ##print(f"{node.role.name} {time.time()}" )

@@ -10,6 +10,7 @@ from helpers import Roles
 from leader_election_service import LeaderElectionService
 import queue
 import json
+from side_car import  SIDE_CAR_PORT_OFFSET_GRPC
 
 from redis_client import RedisClient
 
@@ -408,6 +409,20 @@ class Node:
         acceptor_count = len(self.get_nodes_by_role(Roles.ACCEPTOR))
         learner_count = len(self.get_nodes_by_role(Roles.LEANER))
         return  proposer_count >=1  and  learner_count == 1 and acceptor_count >1
+
+    def log(self, message, log_vale=helpers.LogLevels.INFORMATION):
+        try:
+            channel = grpc.insecure_channel(f"localhost:{SIDE_CAR_PORT_OFFSET_GRPC + self.id}")
+            stub = node_pb2_grpc.LoginServiceStub(channel)
+            log_request = node_pb2.LogRequest(
+                log_level=log_vale.value,
+                message=message
+            )
+            response = stub.LogMessageRequest(log_request)
+            if response.success:
+                return response.success
+        except Exception as e:
+            print(f"Node {self.id}: Failed to communicate with({e})")
 
 
 
