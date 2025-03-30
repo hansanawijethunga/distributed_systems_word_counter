@@ -8,8 +8,6 @@ class LeaderElectionService(node_pb2_grpc.LeaderElectionServicer):
         self.node = node
 
     def Challenge(self, request, context):
-        # print("Setting is election to true")
-        # self.node.start_election()
         self.node.is_should_start_election = True
         return node_pb2.ChallengeResponse(acknowledged=True)
 
@@ -22,7 +20,8 @@ class LeaderElectionService(node_pb2_grpc.LeaderElectionServicer):
         if role == Roles.LEANER.name:
             self.node.start_redis()
             self.node.role = Roles.LEANER
-        print(f"Node {self.node.id}I am a/an {self.node.role.name}")
+        print(f"Node {self.node.id}I am a {self.node.role.name}")
+        self.node.log("Assigned role {self.node.role.name}")
         return node_pb2.UpdateRoleResponse(success=True)
 
     def QueueJob(self,request,context):

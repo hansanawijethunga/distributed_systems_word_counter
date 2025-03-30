@@ -13,6 +13,7 @@ import json
 from side_car import  SIDE_CAR_PORT_OFFSET_GRPC
 
 from redis_client import RedisClient
+from  helpers import  LogLevels
 
 MULTICAST_GROUP = "224.1.1.1"
 BASE_PORT = 5000  # Base port number for calculation
@@ -99,12 +100,12 @@ class Node:
             time.sleep(5) #waiting for nodes
             self.update_node_status()
             print("Leader Election Started")
+            self.log("Leader Election Started")
             acknowledged = self.challenge_higher_nodes()
             if not acknowledged and not self.isLeader:
                 self.announce_leadership()
             else:
-                time.sleep(10) #Waiitng for other nods annowsments
-            #print("Setting is election to false")
+                time.sleep(10)
         self.is_election = False
 
     def challenge_higher_nodes(self):
@@ -113,7 +114,7 @@ class Node:
         for higher_id in sorted(self.nodes.keys(), reverse=True):
             if higher_id > self.id:
                 try:
-                    #print(f"Node {self.id} challenging node {higher_id} through port {GRPC_PORT_OFFSET + higher_id}")
+
                     channel = grpc.insecure_channel(f"localhost:{GRPC_PORT_OFFSET + higher_id}")
                     stub = node_pb2_grpc.LeaderElectionStub(channel)
                     challenge_request = node_pb2.ChallengeRequest(node_id=self.id)
@@ -136,20 +137,19 @@ class Node:
         self.isLeader =True
         self.leader_id = (self.id,time.time())
         print(f"Node {self.id}: I am Leader")
+        print("Appointed as leader")
 
     def set_leader(self,n_id):
         if self.isLeader:
             if self.id < n_id:
                 self.leader_id = (n_id, time.time())
                 self.isLeader = False
-                #print(f"Node {self.id}: Handing over the leadership to {n_id}")
             else:
                 self.isLeader = True
-                #print(f"Node {self.id}: Reject the Leadership offer form {n_id}")
         else:
             self.leader_id = (n_id, time.time())
             self.isLeader = False
-            #print(f"Node {self.id}: Recognized leader {n_id}")
+
 
 
 
@@ -286,6 +286,7 @@ class Node:
         sock.sendto(prepare_message, (MULTICAST_GROUP, self.port))
         sock.close()
         print(f"Sent proposal: {prepare_message.decode()}")  # Debug output
+        self.log(f"Sent proposal: {prepare_message.decode()}")
 
 
 
@@ -339,8 +340,10 @@ class Node:
                     return response.success
             else:
                 print(f"{self.role.name} Learner Not Found")
+                self.log("Learner Not Found",LogLevels.WARNING)
         except Exception as e:
             print(f"Node {self.role.name}: Failed to communicate with Learner ({e})")
+            self.log(f"Failed to communicate with Learner ({e})", LogLevels.ERROR)
 
 
 
@@ -349,6 +352,11 @@ class Node:
         self.accepted_proposals.put((node_id, proposal_no, value,data))
 
     def process_learning(self,proposal ,status,data):
+        if status:
+            self.log(f"Proposal {proposal} Approved by Majority Acceptors")
+        else:
+            self.log(f"Proposal {proposal} Rejected by Majority Acceptors",LogLevels.WARNING)
+
         response = self.inform_leader(status)
         if status and response:
             self.redis_client.update_letter_counts(data)

@@ -66,12 +66,8 @@ class RedisClient:
 # Example Usage
 if __name__ == "__main__":
     redis_client = RedisClient()
-    abc = redis_client.get_value("last_success_proposal")
-    # print(abc)
-    # if abc is None or "":
-    #     print("no Value")
+    redis_client1 = RedisClient(port=4380)
     redis_client.clear_all_dbs()
-    # redis_client.set_value("K",30)
-    # redis_client.update_letter_counts({"A":10,"B":20,"C":30})
-    # print( redis_client.get_value("A"))
+    redis_client1.clear_all_dbs()
+
     print(redis_client.get_all_keys_and_values())

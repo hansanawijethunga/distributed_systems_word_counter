@@ -6,7 +6,7 @@ import multiprocessing
 import sys
 
 import helpers
-from helpers import Roles
+from helpers import Roles, LogLevels
 from node import Node
 from pdf_reader import PDFReader
 import json
@@ -41,7 +41,8 @@ def leader(node):
     line_start =0
     continue_flag = False
     if last_success_page_line is not None and last_success_page_line != "":
-        #print("Previous Procress Fond")
+        print("Previous Procress Fond")
+        node.log("Previous Process Fond")
         continue_flag = True
         page_start = int(last_success_page_line[:4])
         line_start = int(last_success_page_line[4:7])+1
@@ -70,13 +71,17 @@ def leader(node):
             if node.check_minium_requirement(): #minimun nodes need to run the system
                 letter_ranges = helpers.assign_ranges(proposers)
                 for proposer_id, letter_range in letter_ranges.items():
-                    print(f"sending page {page_no} line {line_no} {text_list[line_no]} to proposer {proposer_id}  assigned letter range  {letter_range['range'][0]}-{letter_range['range'][1]}")
+                    message = f"sending page {page_no} line {line_no} {text_list[line_no]} to proposer {proposer_id}  assigned letter range  {letter_range['range'][0]}-{letter_range['range'][1]}"
+                    message_short = f"sending page {page_no} line {line_no}  to proposer {proposer_id} letter range  {letter_range['range'][0]}-{letter_range['range'][1]}"
+                    print(message)
+                    node.log(message_short)
                     proposer_feedback = node.queue_job(n_id= proposer_id,letter_range= f'{letter_range["range"][0]}-{letter_range["range"][1]}',page= page_no,line= line_no,
                                                        text= text_list[line_no],sequence=int(time.time()))
 
                     if not proposer_feedback: #if proposer return False stop the propose assignment and start form beginning
                         print(
                             f"FAIL sending page {page_no} line {line_no} {text_list[line_no]} to proposer {proposer_id} to")
+                        node.log(f"Fail Communicating to Proposer {proposer_id}",LogLevels.ERROR)
                         break
                 start_time = time.time()
                 learner_id = next(iter(node.get_nodes_by_role(Roles.LEANER)))
@@ -88,34 +93,33 @@ def leader(node):
                         break
                     if time.time() - start_time >= 2 * 60:
                         print("All the votes not found, retrying line")
+                        node.log(f"Majority votes not found, retrying line",LogLevels.WARNING)
                         break
                 if node.go_no_go_new_line == helpers.Stage.GO:
                     line_no += 1
 
             else:
                 print(f"Waiting for nodes system is in halt")
+                node.log(f"Minium no of nodes not found system is in halt",LogLevels.WARNING)
                 print(f"found {len(proposers)} proposer nodes needs one minium")
                 print(f"found {acceptor_count} Acceptors needs 2 minium")
                 print(f"found {learner_count} Learners needs one")
                 time.sleep(5)
             # time.sleep(120)
     print("Document Completed")
+    node.log(f"Reached End of the Document")
     time.sleep(1000)
 
 def proposer(node):
         if node.jobs.empty():
             #print(f"{node.role.name} : Waiting for tasks")
             return
-
         job = node.jobs.get()
         #print("Job Started")
-
         letter_counts = helpers.count_words_by_letter(job['letter_range'], job['text'])
         node.update_node_status()
-
         proposal_number = f"{job['sequence']}{str(job['page']).zfill(4)}{str(job['line']).zfill(3)}{job['letter_range'].replace('-','')}"
         #print(f"Sending proposal {proposal_number} with counts {letter_counts} for text: {job['text']}")
-
         node.send_proposal(proposal_number, letter_counts)
 
 
@@ -145,6 +149,11 @@ def acceptor(node):
         print(letters)
         decision = not helpers.has_negative_one(letters)  #True if list do not have negative -1
         print(decision)
+
+        if decision:
+            node.log(f"Line {line} validation 'Success")
+        else:
+            node.log(f"Line {line} validation 'Fail",LogLevels.WARNING)
         node.send_acceptor_decision(line, decision, json.dumps(letters) if decision else "{}")
         node.proposals =  queue.Queue()
     else:
@@ -196,6 +205,7 @@ def start_node(n_id):
     node = Node(n_id)
     start_threads(node)
     start_process_side_car(n_id)
+    node.log("Node Started")
     try:
         ##print(f"Listening for other nodes")
         time.sleep(5)
