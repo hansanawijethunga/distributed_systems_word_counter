@@ -26,6 +26,7 @@ TEXT_COLORS = {
     LogLevels.DEBUG.name: "#31708F",  # Dark blue for debug
 }
 
+
 def parse_log_entry(log_entry):
     match = re.match(r"\[(\d+)] \[(.*?)\] \[(\d+)] (.*)", log_entry)
     if match:
@@ -38,12 +39,19 @@ def parse_log_entry(log_entry):
         }
     return None
 
+
 def read_logs_from_redis():
     keys = redis_client.keys("*-timestamp")
     keys.sort()
     logs = [parse_log_entry(redis_client.get(key)) for key in keys]
     logs = [log for log in logs if log]
-    return pd.DataFrame(logs) if logs else pd.DataFrame(columns=["Node ID", "Time", "Log Level", "Message"])
+    logs_df = pd.DataFrame(logs) if logs else pd.DataFrame(columns=["Node ID", "Time", "Log Level", "Message"])
+
+    # Sort Node IDs as integers
+    if not logs_df.empty:
+        logs_df["Node ID"] = logs_df["Node ID"].astype(int)
+    return logs_df
+
 
 def get_node_activity():
     keys = redis_client.keys("*-node")
@@ -65,7 +73,12 @@ def get_node_activity():
             })
 
     df = pd.DataFrame(node_status) if node_status else pd.DataFrame(columns=["Node ID", "Role", "Status"])
+
+    # Sort Node IDs as integers
+    if not df.empty:
+        df["Node ID"] = df["Node ID"].astype(int)
     return df.sort_values(by=["Node ID"])
+
 
 def get_current_page_and_line():
     value = redis_client_proposal.get("last_success_proposal")
@@ -75,10 +88,12 @@ def get_current_page_and_line():
         return f"📄 Current Page: {page_number}, Line: {line_number}"
     return "📄 Current Page: N/A, Line: N/A"
 
+
 def get_letter_word_counts():
     letters = [chr(i) for i in range(65, 91)]
     word_counts = [{"Letter": letter, "Word Count": int(redis_client_proposal.get(letter) or 0)} for letter in letters]
     return pd.DataFrame(word_counts)
+
 
 logs_df = read_logs_from_redis()
 
@@ -109,10 +124,12 @@ if selected_node != "All":
 if selected_log_level != "All":
     logs_df = logs_df[logs_df["Log Level"] == selected_log_level]
 
+
 def style_row(row):
     color = LOG_COLORS[row["Log Level"]]
     text_color = TEXT_COLORS[row["Log Level"]]
     return [f'background-color: {color}; color: {text_color}'] * len(row)
+
 
 styled_df = logs_df.style.apply(style_row, axis=1)
 
