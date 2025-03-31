@@ -77,7 +77,7 @@ class SideCar:
 
     def set_availability(self,node_id,role):
             self.redis_client.set_value(f"{node_id}-node",f"{role}-{time.time()}")
-            print(self.redis_client.get_value(f"{node_id}-node"))
+            # print(self.redis_client.get_value(f"{node_id}-node"))
 
 
 

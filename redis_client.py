@@ -70,4 +70,5 @@ if __name__ == "__main__":
     redis_client.clear_all_dbs()
     redis_client1.clear_all_dbs()
 
+
     print(redis_client.get_all_keys_and_values())
