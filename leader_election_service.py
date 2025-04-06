@@ -51,8 +51,9 @@ class LeaderElectionService(node_pb2_grpc.LeaderElectionServicer):
         proposal_number = request.proposal_number
         value = request.value
         data = request.data
+        words = request.words
         if proposal_number not in self.node.proposal_list:
-            self.node.push_leander_queue(node_id,proposal_number,value,data)
+            self.node.push_leander_queue(node_id,proposal_number,value,data,words)
         return node_pb2.AcknowledgementResponse(success=True)
 
 

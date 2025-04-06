@@ -1,3 +1,4 @@
+import math
 from enum import Enum
 import socket
 import string
@@ -54,59 +55,76 @@ def get_assign_role(nodes):
 
     # After the stable configuration (1 learner, 1 proposer, 3 acceptors),
     # we first add acceptors to the system.
-    if nodes[Roles.ACCEPTOR.name] < 2 * nodes[Roles.PROPOSER.name]:
-        return Roles.ACCEPTOR
+    if nodes[Roles.PROPOSER.name] < 2 * nodes[Roles.ACCEPTOR.name]:
+        return Roles.PROPOSER
     # Only add a proposer if we have at least two acceptors for every proposer.
-    return Roles.PROPOSER
+    return Roles.ACCEPTOR
 
 
-def assign_ranges(nodes: dict) -> dict:
+def assign_ranges(nodes: dict ,replication_factor: int = 2) -> dict:
     """
-    Given a dictionary of nodes (each with "other info"),
-    assigns a letter range to each node evenly from A to Z.
+    Given a dictionary of nodes (each with "other info"), assigns a letter range to each node.
 
-    Each node gets a contiguous block of letters. The assigned range
-    is represented as a list containing the first and last letter of the block.
+    The letter range is determined by evenly splitting the alphabet (A-Z) into groups.
+    Each group (or range) is then assigned to replication_factor number of nodes for fault tolerance.
 
-    Example:
-    Input: {
+    For example:
+    Input nodes: {
         12: {"other info": "foo"},
-        13: {"other info": "bar"}
+        13: {"other info": "bar"},
+        14: {"other info": "baz"},
+        15: {"other info": "qux"}
     }
-    Output: {
+    With replication_factor=2, you would have 2 groups.
+
+    Output might be:
+    {
         12: {"other info": "foo", "range": ["A", "M"]},
-        13: {"other info": "bar", "range": ["N", "Z"]}
+        13: {"other info": "bar", "range": ["A", "M"]},
+        14: {"other info": "baz", "range": ["N", "Z"]},
+        15: {"other info": "qux", "range": ["N", "Z"]}
     }
     """
-    # Total letters (A-Z)
-    letters = list(string.ascii_uppercase)  # ['A', 'B', ..., 'Z']
+    letters = list(string.ascii_uppercase)
     total_letters = len(letters)
 
-    # Total available nodes
     total_nodes = len(nodes)
+    if total_nodes == 0:
+        return nodes
 
-    # Determine base size of each segment and the remainder
-    base_size = total_letters // total_nodes  # integer division
-    remainder = total_letters % total_nodes  # extra letters to distribute
+    # Calculate the number of groups (each group gets one unique range)
+    num_groups = math.ceil(total_nodes / replication_factor)
 
-    # Sort the nodes by key (assuming keys can be ordered)
-    sorted_keys = sorted(nodes.keys())
+    # Determine base size of each letter group and distribute extra letters
+    base_group_size = total_letters // num_groups
+    extra_letters = total_letters % num_groups
 
+    # Create the list of letter groups (each group is a tuple: (first_letter, last_letter))
+    groups = []
     start = 0
-    for i, key in enumerate(sorted_keys):
-        # Distribute one extra letter to the first "remainder" nodes
-        extra = 1 if i < remainder else 0
-        end = start + base_size + extra
-
-        # Get the assigned letters for this node
-        assigned_letters = letters[start:end]
-        if assigned_letters:
-            # Represent range as [first_letter, last_letter]
-            nodes[key]["range"] = [assigned_letters[0], assigned_letters[-1]]
+    for i in range(num_groups):
+        # Distribute one extra letter to the first 'extra_letters' groups.
+        current_group_size = base_group_size + (1 if i < extra_letters else 0)
+        end = start + current_group_size
+        if start < total_letters:
+            groups.append([letters[start], letters[end-1]])
         else:
-            nodes[key]["range"] = []
+            groups.append([])
+        start = end
 
-        start = end  # Update starting index for next node
+    # Sort nodes by key to have a consistent order.
+    sorted_node_ids = sorted(nodes.keys())
+
+    # Assign groups to nodes. Each group gets replication_factor nodes.
+    group_index = 0
+    for i, node_id in enumerate(sorted_node_ids):
+        # Determine which group this node should belong to.
+        group_index = i // replication_factor
+        # In case there are more nodes than groups * replication_factor,
+        # assign extra nodes to the last group.
+        if group_index >= len(groups):
+            group_index = len(groups) - 1
+        nodes[node_id]["range"] = groups[group_index]
 
     return nodes
 
@@ -116,14 +134,17 @@ def count_words_by_letter(letter_range, text):
     start_letter, end_letter = start_letter.upper(), end_letter.upper()
 
     letter_counts = {chr(letter): 0 for letter in range(ord(start_letter), ord(end_letter) + 1)}
+    letter_groups = {chr(letter): [] for letter in range(ord(start_letter), ord(end_letter) + 1)}
+
     words = text.split()
 
     for word in words:
         first_letter = word[0].upper()
         if start_letter <= first_letter <= end_letter:
             letter_counts[first_letter] += 1
+            letter_groups[first_letter].append(word)
 
-    return letter_counts
+    return letter_counts, letter_groups
 
 def get_most_common_value(values):
     counter = Counter(values)

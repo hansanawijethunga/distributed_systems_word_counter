@@ -116,11 +116,11 @@ def proposer(node):
             return
         job = node.jobs.get()
         #print("Job Started")
-        letter_counts = helpers.count_words_by_letter(job['letter_range'], job['text'])
+        letter_counts , letter_groups = helpers.count_words_by_letter(job['letter_range'], job['text'])
         node.update_node_status()
         proposal_number = f"{job['sequence']}{str(job['page']).zfill(4)}{str(job['line']).zfill(3)}{job['letter_range'].replace('-','')}"
         #print(f"Sending proposal {proposal_number} with counts {letter_counts} for text: {job['text']}")
-        node.send_proposal(proposal_number, letter_counts)
+        node.send_proposal(proposal_number, letter_counts,letter_groups)
 
 
 def acceptor(node):
@@ -130,6 +130,13 @@ def acceptor(node):
             'K': -1, 'L': -1, 'M': -1, 'N': -1, 'O': -1, 'P': -1, 'Q': -1, 'R': -1, 'S': -1, 'T': -1,
             'U': -1, 'V': -1, 'W': -1, 'X': -1, 'Y': -1, 'Z': -1
         }
+
+        words = {
+            'A': [], 'B': [], 'C': [], 'D': [], 'E': [], 'F': [], 'G': [], 'H': [], 'I': [], 'J': [],
+            'K': [], 'L': [], 'M': [], 'N': [], 'O': [], 'P': [], 'Q': [], 'R': [], 'S': [], 'T': [],
+            'U': [], 'V': [], 'W': [], 'X': [], 'Y': [], 'Z': []
+        }
+
         line = ""
         # proposal_list = []
         while True:
@@ -140,8 +147,9 @@ def acceptor(node):
                     node.proposal_list.append(proposal)
                     line = proposal[10:-2]
                     value = json.loads(value_json)
+                    w =  json.loads(node.letter_groups[proposal])
+                    words.update(w)
                     for letter, count in value.items():
-
                         letters[letter] = count
             except queue.Empty:
                 ##print(f"{node.role.name} No proposals received within 5 seconds.")
@@ -154,7 +162,7 @@ def acceptor(node):
             node.log(f"Line {line} validation 'Success")
         else:
             node.log(f"Line {line} validation 'Fail",LogLevels.WARNING)
-        node.send_acceptor_decision(line, decision, json.dumps(letters) if decision else "{}")
+        node.send_acceptor_decision(line, decision, json.dumps(letters) if decision else "{}",json.dumps(words) if decision else "{}")
         node.proposals =  queue.Queue()
     else:
         pass
@@ -169,9 +177,10 @@ def learner(node):
         status = False
         proposal= ""
         data = {}
+        words = {}
         while True:
             try:
-                n_id, p, value,d = node.accepted_proposals.get(timeout=5)
+                n_id, p, value,d ,w = node.accepted_proposals.get(timeout=5)
                 if p not in node.proposal_list:
                     proposal =p
                     # print(f"{n_id} proposal {proposal} {value}
@@ -182,6 +191,7 @@ def learner(node):
                     if true_count > majority_acceptor_count:
                         status = True
                         data =json.loads(d)
+                        words = json.loads(w)
                         node.proposal_list.append(p)
                         break
             except queue.Empty:
@@ -189,7 +199,7 @@ def learner(node):
                 break
         print(f"Final Decision is {status}")
         # print(data)
-        node.process_learning(proposal, status,data)
+        node.process_learning(proposal, status,data,words)
         node.show_current_count()
         node.accepted_proposals = queue.Queue()
     else:

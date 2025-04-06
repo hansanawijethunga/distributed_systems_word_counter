@@ -79,6 +79,7 @@ message LeanerRequest {
     bool value = 2;
     int32 node_id = 3;
     string data = 4;
+    string words = 5;
 }
 
 message LogRequest {

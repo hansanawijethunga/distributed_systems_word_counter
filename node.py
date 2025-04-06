@@ -14,6 +14,7 @@ from side_car import  SIDE_CAR_PORT_OFFSET_GRPC
 
 from redis_client import RedisClient
 from  helpers import  LogLevels
+import asyncio
 
 MULTICAST_GROUP = "224.1.1.1"
 BASE_PORT = 5000  # Base port number for calculation
@@ -45,6 +46,7 @@ class Node:
         self.line_status = {}
         self.redis_client = None
         self.proposal_list = []
+        self.letter_groups = {}
 
     def start_redis(self):
         #print("Starting Redis")
@@ -57,7 +59,7 @@ class Node:
         mreq = socket.inet_aton(MULTICAST_GROUP) + socket.inet_aton("0.0.0.0")
         sock.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
 
-        #print(f"Node {self.id}: Listening for multicast messages on port {self.port}...")
+        # print(f"Node {self.id}: Listening for multicast messages on port {self.port}...")
 
         try:
             while True:
@@ -82,6 +84,7 @@ class Node:
 
                 if self.role == Roles.ACCEPTOR and headers[1] == "Prepare":
                     if headers[2] not in  self.proposal_list:
+                        self.letter_groups[headers[2]] = headers[4]
                         self.proposals.put((n_id, headers[2], headers[3]))
                         self.promise_proposal(n_id, headers[2])
 
@@ -279,9 +282,10 @@ class Node:
             #print(f"Node {self.id}: Failed to communicate with {n_id} ({e})")
             return False
 
-    def send_proposal(self, proposal_number, value_dict):
+    def send_proposal(self, proposal_number, value_dict ,letter_groups):
         value_json = json.dumps(value_dict)  # Convert dict to a JSON string
-        prepare_message = f"{self.id}-Prepare-{proposal_number}-{value_json}".encode()
+        letter_group_json = json.dumps(letter_groups)
+        prepare_message = f"{self.id}-Prepare-{proposal_number}-{value_json}-{letter_group_json}".encode()
         sock = helpers.create_socket(is_receiver=False)
         sock.sendto(prepare_message, (MULTICAST_GROUP, self.port))
         sock.close()
@@ -321,7 +325,7 @@ class Node:
             print(f"{self.role.name}: Same value, no need to update Learner {new_value}")
             return True
 
-    def send_acceptor_decision(self,proposal,decision,letters):
+    def send_acceptor_decision(self,proposal,decision,letters,words):
         try:
             learner_id = next(iter(self.get_nodes_by_role(Roles.LEANER)), None)
             if learner_id:
@@ -331,7 +335,8 @@ class Node:
                     proposal_number=proposal,
                     value=decision,
                     node_id=self.id,
-                    data = letters
+                    data = letters,
+                    words = words
                 )
                 print(f"{self.role.name} : inform the decision to leaner {proposal} : {decision}")
                 response = stub.InformLeanerRequest(learner_request)
@@ -348,10 +353,10 @@ class Node:
 
 
 
-    def push_leander_queue(self,node_id,proposal_no,value,data):
-        self.accepted_proposals.put((node_id, proposal_no, value,data))
+    def push_leander_queue(self,node_id,proposal_no,value,data,words):
+        self.accepted_proposals.put((node_id, proposal_no, value,data,words))
 
-    def process_learning(self,proposal ,status,data):
+    def process_learning(self,proposal ,status,data,words):
         if status:
             self.log(f"Proposal {proposal} Approved by Majority Acceptors")
         else:
@@ -360,6 +365,7 @@ class Node:
         response = self.inform_leader(status)
         if status and response:
             self.redis_client.update_letter_counts(data)
+            self.redis_client.update_word_list(words)
             self.redis_client.set_value("last_success_proposal", proposal)
 
 
