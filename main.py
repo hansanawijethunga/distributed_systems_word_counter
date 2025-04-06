@@ -174,7 +174,8 @@ def learner(node):
                 n_id, p, value,d = node.accepted_proposals.get(timeout=5)
                 if p not in node.proposal_list:
                     proposal =p
-                    # print(f"{n_id} proposal {proposal} {value} ")
+                    # print(f"{n_id} proposal {proposal} {value}
+                    # ")
                     if value:
                         true_count += 1
                     # print(f"True Count {true_count}")
