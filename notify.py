@@ -7,6 +7,8 @@ from helpers import LogLevels
 import subprocess
 import sys
 import os
+import psutil
+import signal
 
 # Redis clients
 redis_client = redis.StrictRedis(host="localhost", port=4380, db=0, decode_responses=True)
@@ -32,18 +34,51 @@ with col1:
 with col2:
     if st.button("🚀 Start New Node"):
         node_id = st.session_state.next_node_id
-
-        # Get the Python executable from the current environment
         python_exec = sys.executable
-
-        # Build the command
         command = [python_exec, "main.py", "single_run", str(node_id)]
-
-        # Run it in a separate subprocess (non-blocking)
         subprocess.Popen(command, cwd=os.getcwd())
-
         st.success(f"Node {node_id} started as a subprocess using main.py.")
         st.session_state.next_node_id += 1
+
+# -- New Section: Kill Node by ID --
+st.markdown("### 🔪 Kill Node by ID")
+kill_node_id = st.text_input("Enter Node ID to Kill", value="", key="kill_node_input")
+
+
+def kill_udp_process_on_port(n_id):
+    """Kills the process listening on the given TCP port."""
+    port = 60000 + n_id
+    for conn in psutil.net_connections(kind='tcp'):
+        if conn.laddr.port == port and conn.status == psutil.CONN_LISTEN:
+            pid = conn.pid
+            if pid:
+                try:
+                    print(f"Killing TCP process {pid} on port {port}...")
+                    os.kill(pid, signal.SIGTERM)
+                    print("Process terminated.")
+                    return True
+                except Exception as e:
+                    print(f"Error killing process: {e}")
+                    return False
+    print(f"No TCP process is listening on port {port}.")
+    return False
+
+
+if st.button("Kill Node"):
+    if kill_node_id.isdigit():
+        killed = False
+        try:
+            killed = kill_udp_process_on_port(int(kill_node_id))
+        except Exception as e:
+            st.error(f"Error while killing node: {e}")
+        if killed:
+            st.success(f"Node {kill_node_id} successfully terminated.")
+        else:
+            st.warning(f"No process found for Node {kill_node_id}.")
+    else:
+        st.warning("Please enter a valid numeric Node ID.")
+
+
 
 # -- Helpers --
 
@@ -155,6 +190,8 @@ def color_logs(row):
         "DEBUG": "#31708F",
     }.get(row["Log Level"], "#000000")
     return [f"background-color: {bg}; color: {color}"] * len(row)
+
+
 
 st.subheader("Logs")
 st.dataframe(logs_df.style.apply(color_logs, axis=1), height=500, use_container_width=True)
